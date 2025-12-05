@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lighting Designer 2D (PWA)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+
+  <!-- manifest PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+
+  <!-- podstawowe style -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- iOS: kolor paska i tryb standalone -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lighting Designer">
+
+  <!-- iOS: ikona (może być ta sama co w manifest) -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Lighting Designer 2D</h1>
+        <p class="subtitle">Szybkie szkice oświetlenia sceny (widok od frontu)</p>
+      </div>
+      <div class="topbar-right">
+        <button id="newProjectBtn" class="btn primary">Nowy projekt</button>
+        <button id="exportBtn" class="btn">Eksportuj scenę (PNG)</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section>
+          <h2>Projekty</h2>
+          <div id="projectsList" class="projects-list"></div>
+        </section>
+
+        <section>
+          <h2>Elementy</h2>
+          <div id="palette" class="palette"></div>
+        </section>
+
+        <section>
+          <h2>Właściwości</h2>
+          <div id="properties" class="properties">
+            <p id="noSelectionText">Brak zaznaczonego elementu</p>
+            <div id="propertiesPanel" class="hidden">
+              <label>
+                Typ:
+                <span id="propType"></span>
+              </label>
+              <label>
+                Skala:
+                <input type="range" id="propScale" min="0.5" max="2" step="0.1" />
+              </label>
+              <label>
+                Kolor światła:
+                <input type="color" id="propColor" />
+              </label>
+              <button id="deleteElementBtn" class="btn danger small">Usuń element</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="canvas-wrapper">
+        <canvas id="stageCanvas"></canvas>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
