@@ -63,6 +63,7 @@ function loadProjects() {
     const defaultProject = {
       id: crypto.randomUUID(),
       name: "Domyślny projekt",
+      // scenę traktujemy jako stałą, ale trzymamy w modelu
       stageWidth: 10,
       stageDepth: 6,
       elements: []
@@ -88,7 +89,7 @@ function getCurrentProject() {
   return projects.find(p => p.id === currentProjectId) || null;
 }
 
-// ===== UI: projekty (lista rozwijana) =====
+// ===== UI: projekty + eksport =====
 
 const projectSelectEl = document.getElementById("projectSelect");
 const newProjectBtn = document.getElementById("newProjectBtn");
@@ -113,7 +114,6 @@ if (projectSelectEl) {
   projectSelectEl.addEventListener("change", () => {
     currentProjectId = projectSelectEl.value;
     selectedElementId = null;
-    updateStageInputs();
     updatePropertiesPanel();
     renderScene();
   });
@@ -134,7 +134,7 @@ if (newProjectBtn) {
     projects.push(project);
     currentProjectId = project.id;
     saveProjects();
-    updateStageInputs();
+    selectedElementId = null;
     updatePropertiesPanel();
     renderScene();
   });
@@ -154,7 +154,7 @@ if (deleteProjectBtn) {
     projects = projects.filter(p => p.id !== currentProjectId);
     currentProjectId = projects[0]?.id || null;
     saveProjects();
-    updateStageInputs();
+    selectedElementId = null;
     updatePropertiesPanel();
     renderScene();
   });
@@ -174,7 +174,7 @@ if (exportImageBtn) {
   });
 }
 
-// ===== UI: paleta jako lista rozwijana =====
+// ===== Paleta jako dropdown =====
 
 const elementSelectEl = document.getElementById("elementSelect");
 const addElementBtn = document.getElementById("addElementBtn");
@@ -409,7 +409,7 @@ function hitTestElement(px, py) {
 }
 
 canvas.addEventListener("pointerdown", e => {
-  e.preventDefault(); // ważne na iOS (blokuje scroll)
+  e.preventDefault(); // ważne na iOS – blokuje scroll
 
   const pos = getPointerPos(e);
   const hit = hitTestElement(pos.x, pos.y);
@@ -487,7 +487,7 @@ function endPointerDrag(e) {
 canvas.addEventListener("pointerup", endPointerDrag);
 canvas.addEventListener("pointercancel", endPointerDrag);
 
-// ===== Panel właściwości (bez „Brak zaznaczonego elementu”) =====
+// ===== Panel właściwości – stałe miejsce, bez „Brak zaznaczonego elementu” =====
 
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
@@ -497,23 +497,41 @@ const deleteElementBtn = document.getElementById("deleteElementBtn");
 
 function updatePropertiesPanel() {
   const project = getCurrentProject();
-  if (!project || !selectedElementId) {
-    if (propertiesPanelEl) propertiesPanelEl.classList.add("hidden");
-    return;
-  }
+  const el = project && selectedElementId
+    ? project.elements.find(e => e.id === selectedElementId)
+    : null;
 
-  const el = project.elements.find(e => e.id === selectedElementId);
   if (!el) {
-    if (propertiesPanelEl) propertiesPanelEl.classList.add("hidden");
+    // brak zaznaczenia – panel zostaje, ale jest „pusty/wyłączony”
+    if (propTypeEl) propTypeEl.textContent = "–";
+    if (propScaleEl) {
+      propScaleEl.value = 1;
+      propScaleEl.disabled = true;
+    }
+    if (propColorEl) {
+      propColorEl.value = "#ffffff";
+      propColorEl.disabled = true;
+    }
+    if (deleteElementBtn) {
+      deleteElementBtn.disabled = true;
+    }
     return;
   }
 
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
-  if (propTypeEl) propTypeEl.textContent = type ? type.name : el.typeId;
-  if (propScaleEl) propScaleEl.value = el.scale.toFixed(2);
-  if (propColorEl) propColorEl.value = el.color || (type ? type.color : "#ffffff");
 
-  if (propertiesPanelEl) propertiesPanelEl.classList.remove("hidden");
+  if (propTypeEl) propTypeEl.textContent = type ? type.name : el.typeId;
+  if (propScaleEl) {
+    propScaleEl.disabled = false;
+    propScaleEl.value = el.scale.toFixed(2);
+  }
+  if (propColorEl) {
+    propColorEl.disabled = false;
+    propColorEl.value = el.color || (type ? type.color : "#ffffff");
+  }
+  if (deleteElementBtn) {
+    deleteElementBtn.disabled = false;
+  }
 }
 
 if (propScaleEl) {
@@ -554,49 +572,12 @@ if (deleteElementBtn) {
   });
 }
 
-// ===== Ustawienia sceny =====
-
-const stageWidthInput = document.getElementById("stageWidth");
-const stageDepthInput = document.getElementById("stageDepth");
-
-function updateStageInputs() {
-  const project = getCurrentProject();
-  if (!project) return;
-  if (stageWidthInput) stageWidthInput.value = project.stageWidth ?? 10;
-  if (stageDepthInput) stageDepthInput.value = project.stageDepth ?? 6;
-}
-
-if (stageWidthInput) {
-  stageWidthInput.addEventListener("input", () => {
-    const project = getCurrentProject();
-    if (!project) return;
-    const val = parseFloat(stageWidthInput.value);
-    if (isNaN(val)) return;
-    project.stageWidth = val;
-    saveProjects();
-    renderScene();
-  });
-}
-
-if (stageDepthInput) {
-  stageDepthInput.addEventListener("input", () => {
-    const project = getCurrentProject();
-    if (!project) return;
-    const val = parseFloat(stageDepthInput.value);
-    if (isNaN(val)) return;
-    project.stageDepth = val;
-    saveProjects();
-    renderScene();
-  });
-}
-
 // ===== Inicjalizacja =====
 
 function init() {
   loadProjects();
   populateProjectSelect();
   setupElementSelect();
-  updateStageInputs();
   updatePropertiesPanel();
   resizeCanvas();
 }
