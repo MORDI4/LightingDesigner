@@ -1,7 +1,7 @@
 // Lighting Designer 2D - PWA, vanilla JS
 // PRO: realistyczne typy świateł + haze + blending, BEZ tilt/dodatków w profile/bar
 // + przycisk "Powiel" w panelu wybranego światła
-// + legenda typów świateł na dole sceny (miniatury), widoczna też w eksporcie
+// + legenda typów świateł NAD sceną (miniatury, 1–2 rzędy), widoczna też w eksporcie
 
 // ===== Konfiguracja świateł =====
 
@@ -17,6 +17,7 @@ const ELEMENT_TYPES = [
 ];
 
 const STORAGE_KEY = "lighting_designer_projects_v1";
+const LEGEND_AREA_HEIGHT = 72; // miejsce nad sceną na legendę
 
 // ===== Stan aplikacji =====
 
@@ -46,6 +47,14 @@ function resizeCanvas() {
 }
 
 window.addEventListener("resize", resizeCanvas);
+
+// wspólne parametry sceny – wszędzie to samo
+function getStageMetrics(w, h) {
+  const stageMargin = w * 0.1;
+  const stageHeight = h * 0.6;
+  const stageY = LEGEND_AREA_HEIGHT + h * 0.1; // scena zaczyna się poniżej legendy
+  return { stageMargin, stageHeight, stageY };
+}
 
 // ===== Projekty =====
 
@@ -243,10 +252,9 @@ function renderScene() {
   const project = getCurrentProject();
   if (!project) return;
 
-  const stageHeight = h * 0.6;
-  const stageY = h * 0.15;
-  const stageMargin = w * 0.1;
+  const { stageMargin, stageHeight, stageY } = getStageMetrics(w, h);
 
+  // scena + siatka
   ctx.save();
   ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
   ctx.lineWidth = 1;
@@ -276,14 +284,16 @@ function renderScene() {
 
   ctx.restore();
 
+  // światła
   for (const el of project.elements) {
     drawElement(el, w, h);
   }
 
+  // legenda nad sceną
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (miniatury, 1–2 rzędy) =====
+// ===== Legenda typów świateł (nad sceną, 1–2 rzędy) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -293,27 +303,33 @@ function drawLegend(project, w, h) {
   const marginX = 12;
   const marginY = 6;
   const legendHeight = 30;
-  const bottomOffset = 18; // odstęp od dolnej krawędzi / paska home na iPhonie
 
-  // Ile ikon w jednym rzędzie w zależności od szerokości ekranu
+  // ile ikon w rzędzie
   let maxPerRow;
   if (w <= 430) {
-    // bardzo wąskie ekrany – max 5 ikon w rzędzie
-    maxPerRow = 5;
+    maxPerRow = 5;      // bardzo wąskie telefony
   } else if (w <= 768) {
-    // typowy iPhone w pionie – max 6 ikon
-    maxPerRow = 6;
+    maxPerRow = 6;      // typowy iPhone
   } else {
-    // desktop – wszystko w jednym rzędzie (w razie czego i tak wejdzie w 2 rzędy)
-    maxPerRow = typeIds.length;
+    maxPerRow = typeIds.length; // desktop
   }
 
   const totalRows = Math.min(2, Math.ceil(typeIds.length / maxPerRow));
   const rowHeight = legendHeight + 4;
-  const bottomRowCenterY = h - marginY - legendHeight / 2 - bottomOffset;
+
+  const legendAreaTop = marginY;
+  const legendAreaBottom = LEGEND_AREA_HEIGHT - marginY;
+  const legendAreaHeight = legendAreaBottom - legendAreaTop;
+
+  const totalLegendBlockHeight = totalRows * rowHeight;
+  const firstRowCenterY =
+    legendAreaTop +
+    (legendAreaHeight - totalLegendBlockHeight) / 2 +
+    legendHeight / 2;
 
   ctx.save();
-  ctx.font = "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+  ctx.font =
+    "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
 
@@ -325,7 +341,7 @@ function drawLegend(project, w, h) {
 
     const availableWidth = w - marginX * 2;
     const step = Math.min(120, availableWidth / itemsInRow);
-    const rowCenterY = bottomRowCenterY - (totalRows - 1 - row) * rowHeight;
+    const rowCenterY = firstRowCenterY + row * rowHeight;
 
     for (let i = 0; i < itemsInRow; i++) {
       const typeId = typeIds[startIndex + i];
@@ -335,9 +351,9 @@ function drawLegend(project, w, h) {
       const centerX = marginX + step * (i + 0.5);
 
       // szerokość pigułki zależna od typu (szersze światła = szersza ikonka)
-      let pillWidth = 56;
-      if (["wash", "bar", "fresnel"].includes(typeId)) pillWidth = 68;
-      if (step - 10 < pillWidth) pillWidth = step - 10; // żeby nie wyjechało poza krok
+      let pillWidth = 54;
+      if (["wash", "bar", "fresnel"].includes(typeId)) pillWidth = 66;
+      if (step - 10 < pillWidth) pillWidth = step - 10;
 
       const pillHeight = legendHeight;
       const pillX = centerX - pillWidth / 2;
@@ -353,22 +369,43 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      // mini-ikonka – ta sama geometria co na scenie, tylko skrócona wiązka
-      const iconCenterX = pillX + 10;
-      const iconCenterY = rowCenterY - 2;
-      const iconMaxHeight = legendHeight * 0.7;
+      const isBar = typeId === "bar";
+
+      // mini-ikonka – ta sama geometria co na scenie, tylko skalowana
+      let iconCenterX, iconCenterY, iconMaxHeight;
+
+      if (isBar) {
+        // LED bar: tekst nad ikoną, ikona na środku
+        iconCenterX = centerX;
+        iconCenterY = rowCenterY + 5;
+        iconMaxHeight = legendHeight * 0.45;
+      } else {
+        // reszta: ikona po lewej, tekst po prawej
+        iconCenterX = pillX + 8;
+        iconCenterY = rowCenterY - 1;
+        iconMaxHeight = legendHeight * 0.6;
+      }
+
       drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
       // podpis typu
       ctx.fillStyle = "#e5e7eb";
-      ctx.fillText(type.name, pillX + 20, rowCenterY + 0.5);
+      if (isBar) {
+        // LED bar – tekst nad ikoną, wycentrowany
+        ctx.textAlign = "center";
+        ctx.fillText(type.name, centerX, pillY + 8);
+        ctx.textAlign = "left";
+      } else {
+        // reszta – tekst obok ikonki
+        ctx.fillText(type.name, pillX + 18, rowCenterY + 0.5);
+      }
     }
   }
 
   ctx.restore();
 }
 
-// miniatury bazujące na tych samych kształtach co na scenie (tylko krótsze wiązki)
+// miniatury – ta sama geometria i gradient co na scenie, tylko pomniejszone
 function drawLegendIcon(type, cx, cy, maxHeight) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -376,156 +413,13 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const color = type.color;
   const id = type.id;
 
-  // skalujemy w dół względem pełnych wymiarów
-  const scale = 0.35;
+  // mniejsza skala niż wcześniej, żeby na pewno zmieścić się w pigułce
+  const scale = 0.22;
   const baseW = type.width * scale;
   const baseH = type.height * scale;
 
-  // parametry wiązki takie jak w drawElement, ale krótsze
+  // konfiguracja wiązki 1:1 z drawElement
   let beamShape = "cone";
-  let beamLenFactor = 1.8;
-  let topWidthFactor = 1.0;
-  let bottomWidthFactor = 1.6;
-
-  switch (id) {
-    case "spot":
-      beamShape = "cone";
-      beamLenFactor = 1.6;
-      topWidthFactor = 0.6;
-      bottomWidthFactor = 1.4;
-      break;
-    case "wash":
-      beamShape = "cone";
-      beamLenFactor = 1.6;
-      topWidthFactor = 1.0;
-      bottomWidthFactor = 2.0;
-      break;
-    case "beam":
-      beamShape = "cone";
-      beamLenFactor = 2.0;
-      topWidthFactor = 0.3;
-      bottomWidthFactor = 0.9;
-      break;
-    case "bar":
-      beamShape = "bar";
-      break;
-    case "profile":
-      beamShape = "rect";
-      beamLenFactor = 1.6;
-      break;
-    case "fresnel":
-      beamShape = "fresnel";
-      break;
-    case "par":
-      beamShape = "par";
-      break;
-    case "strobe":
-      beamShape = "strobe";
-      break;
-    default:
-      beamShape = "cone";
-  }
-
-  const maxBeamLength = maxHeight; // żeby się zmieściło w pigułce
-
-  // wiązka (bez haze, tylko kształt)
-  ctx.fillStyle = color;
-
-  if (beamShape === "cone") {
-    let beamLength = baseH * beamLenFactor;
-    beamLength = Math.min(beamLength, maxBeamLength);
-    const topWidth = baseW * topWidthFactor;
-    const bottomWidth = baseW * bottomWidthFactor;
-
-    ctx.beginPath();
-    ctx.moveTo(-topWidth / 2, 0);
-    ctx.lineTo(topWidth / 2, 0);
-    ctx.lineTo(bottomWidth / 2, beamLength);
-    ctx.lineTo(-bottomWidth / 2, beamLength);
-    ctx.closePath();
-    ctx.fill();
-  } else if (beamShape === "rect") {
-    let beamLength = baseH * beamLenFactor;
-    beamLength = Math.min(beamLength, maxBeamLength);
-    const width = baseW * 1.1;
-
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(-width / 2, 0, width, beamLength, 3);
-    } else {
-      ctx.rect(-width / 2, 0, width, beamLength);
-    }
-    ctx.fill();
-  } else if (beamShape === "bar") {
-    const barWidth = baseW * 2.3;
-    const barHeight = Math.min(baseH * 0.8, maxBeamLength * 0.5);
-    if (ctx.roundRect) {
-      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
-    } else {
-      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
-    }
-    ctx.fill();
-  } else if (beamShape === "fresnel" || beamShape === "par") {
-    const radius = Math.min(baseH * (beamShape === "fresnel" ? 1.3 : 1.0), maxBeamLength * 0.6);
-    const radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
-    const radiusY = radius;
-
-    ctx.save();
-    ctx.translate(0, radius * 0.2);
-    ctx.scale(radiusX / radius, radiusY / radius);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  } else if (beamShape === "strobe") {
-    const radius = Math.min(baseH, maxBeamLength * 0.6);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // fixture – mały prostokącik nad początkiem wiązki (tam, gdzie na scenie)
-  const fixtureH = baseH * 0.7;
-  const fixtureW = baseW;
-  ctx.fillStyle = color;
-  if (ctx.roundRect) {
-    ctx.roundRect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH, 3);
-  } else {
-    ctx.rect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH);
-  }
-  ctx.fill();
-
-  ctx.restore();
-}
-
-// ===== Rysowanie pojedynczego światła (pełny kształt) =====
-
-function drawElement(el, w, h) {
-  const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
-  if (!type) return;
-
-  const stageHeight = h * 0.6;
-  const stageY = h * 0.15;
-  const stageMargin = w * 0.1;
-
-  const baseW = type.width * el.scale;
-  const baseH = type.height * el.scale;
-
-  const minX = stageMargin;
-  const maxX = w - stageMargin;
-  const minY = stageY;
-  const maxY = stageY + stageHeight;
-
-  const x = minX + el.x * (maxX - minX);
-  const y = minY + el.y * (maxY - minY);
-
-  ctx.save();
-  ctx.translate(x, y);
-
-  const color = el.color || type.color;
-  const id = type.id;
-
-  let beamShape = "cone"; // cone, rect, bar, fresnel, par, strobe
   let beamLenFactor = 0.3;
   let topWidthFactor = 1.0;
   let bottomWidthFactor = 1.6;
@@ -597,7 +491,202 @@ function drawElement(el, w, h) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // BEAMS & HAZE (additive)
+  // WIĄZKA (ten sam kształt i typ gradientu co na scenie, tylko skrócony)
+  if (beamShape === "cone") {
+    let beamLength = baseH * beamLenFactor * 4; // 4x żeby przypominało scenę
+    beamLength = Math.min(beamLength, maxHeight);
+    const topWidth = baseW * topWidthFactor;
+    const bottomWidth = baseW * bottomWidthFactor;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
+    grad.addColorStop(0, hexToRgba(color, sA));
+    grad.addColorStop(0.4, hexToRgba(color, mA));
+    grad.addColorStop(1, hexToRgba(color, eA));
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(-topWidth / 2, 0);
+    ctx.lineTo(topWidth / 2, 0);
+    ctx.lineTo(bottomWidth / 2, beamLength);
+    ctx.lineTo(-bottomWidth / 2, beamLength);
+    ctx.closePath();
+    ctx.fill();
+  } else if (beamShape === "rect") {
+    let beamLength = baseH * beamLenFactor * 4;
+    beamLength = Math.min(beamLength, maxHeight);
+    const width = baseW * 1.1;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
+    grad.addColorStop(0, hexToRgba(color, sA));
+    grad.addColorStop(0.7, hexToRgba(color, mA));
+    grad.addColorStop(1, hexToRgba(color, eA));
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(-width / 2, 0, width, beamLength, 3);
+    } else {
+      ctx.rect(-width / 2, 0, width, beamLength);
+    }
+    ctx.fill();
+  } else if (beamShape === "bar") {
+    const barWidth = baseW * 3.2;
+    const barHeight = Math.min(baseH * 0.8, maxHeight * 0.6);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, barHeight);
+    grad.addColorStop(0, hexToRgba(color, 0.85 * intensity));
+    grad.addColorStop(1, hexToRgba(color, 0.2 * intensity));
+    ctx.fillStyle = grad;
+
+    if (ctx.roundRect) {
+      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
+    } else {
+      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
+    }
+    ctx.fill();
+  } else if (beamShape === "fresnel" || beamShape === "par") {
+    const radiusBase = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
+    const radius = Math.min(radiusBase, maxHeight * 0.6);
+    const radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
+    const radiusY = radius;
+
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    const alphaCenter = beamShape === "fresnel" ? 0.8 : 0.9;
+    grad.addColorStop(0, hexToRgba(color, alphaCenter * intensity));
+    grad.addColorStop(1, hexToRgba(color, 0));
+    ctx.fillStyle = grad;
+
+    ctx.save();
+    ctx.translate(0, radius * 0.3);
+    ctx.scale(radiusX / radius, radiusY / radius);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (beamShape === "strobe") {
+    const radius = Math.min(baseH * 1.0, maxHeight * 0.6);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    grad.addColorStop(0, hexToRgba("#ffffff", 1));
+    grad.addColorStop(0.4, hexToRgba(color, 0.9));
+    grad.addColorStop(1, hexToRgba(color, 0));
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // FIXTURE (mały klocek) – też 1:1 z logiką sceny
+  const fixtureH = baseH * 0.7;
+  const fixtureW = baseW;
+  ctx.fillStyle = color;
+  if (ctx.roundRect) {
+    ctx.roundRect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH, 3);
+  } else {
+    ctx.rect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH);
+  }
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===== Rysowanie pojedynczego światła (pełny kształt) =====
+
+function drawElement(el, w, h) {
+  const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
+  if (!type) return;
+
+  const { stageMargin, stageHeight, stageY } = getStageMetrics(w, h);
+
+  const baseW = type.width * el.scale;
+  const baseH = type.height * el.scale;
+
+  const minX = stageMargin;
+  const maxX = w - stageMargin;
+  const minY = stageY;
+  const maxY = stageY + stageHeight;
+
+  const x = minX + el.x * (maxX - minX);
+  const y = minY + el.y * (maxY - minY);
+
+  ctx.save();
+  ctx.translate(x, y);
+
+  const color = el.color || type.color;
+  const id = type.id;
+
+  let beamShape = "cone";
+  let beamLenFactor = 0.3;
+  let topWidthFactor = 1.0;
+  let bottomWidthFactor = 1.6;
+  let startAlpha = 0.9;
+  let midAlpha = 0.4;
+  let endAlpha = 0.0;
+  let intensity = 1.0;
+
+  switch (id) {
+    case "spot":
+      beamShape = "cone";
+      beamLenFactor = 0.45;
+      topWidthFactor = 0.6;
+      bottomWidthFactor = 1.5;
+      startAlpha = 0.95;
+      midAlpha = 0.5;
+      endAlpha = 0.0;
+      intensity = 0.9;
+      break;
+    case "wash":
+      beamShape = "cone";
+      beamLenFactor = 0.5;
+      topWidthFactor = 1.2;
+      bottomWidthFactor = 2.4;
+      startAlpha = 0.75;
+      midAlpha = 0.35;
+      endAlpha = 0.0;
+      intensity = 0.8;
+      break;
+    case "beam":
+      beamShape = "cone";
+      beamLenFactor = 0.7;
+      topWidthFactor = 0.25;
+      bottomWidthFactor = 0.9;
+      startAlpha = 1.0;
+      midAlpha = 0.5;
+      endAlpha = 0.05;
+      intensity = 1.0;
+      break;
+    case "bar":
+      beamShape = "bar";
+      intensity = 0.85;
+      break;
+    case "profile":
+      beamShape = "rect";
+      beamLenFactor = 0.55;
+      startAlpha = 0.95;
+      midAlpha = 0.6;
+      endAlpha = 0.15;
+      intensity = 0.9;
+      break;
+    case "fresnel":
+      beamShape = "fresnel";
+      intensity = 0.75;
+      break;
+    case "par":
+      beamShape = "par";
+      intensity = 0.9;
+      break;
+    case "strobe":
+      beamShape = "strobe";
+      intensity = 1.0;
+      break;
+    default:
+      beamShape = "cone";
+  }
+
+  const sA = startAlpha * intensity;
+  const mA = midAlpha * intensity;
+  const eA = endAlpha * intensity;
+
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
@@ -607,9 +696,9 @@ function drawElement(el, w, h) {
     const bottomWidth = baseW * bottomWidthFactor;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
-    grad.addColorStop(0,  hexToRgba(color, sA));
+    grad.addColorStop(0, hexToRgba(color, sA));
     grad.addColorStop(0.4, hexToRgba(color, mA));
-    grad.addColorStop(1,  hexToRgba(color, eA));
+    grad.addColorStop(1, hexToRgba(color, eA));
 
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -782,10 +871,7 @@ function hitTestElement(px, py) {
 
   const w = canvas.width / (window.devicePixelRatio || 1);
   const h = canvas.height / (window.devicePixelRatio || 1);
-
-  const stageHeight = h * 0.6;
-  const stageY = h * 0.15;
-  const stageMargin = w * 0.1;
+  const { stageMargin, stageHeight, stageY } = getStageMetrics(w, h);
 
   const minX = stageMargin;
   const maxX = w - stageMargin;
@@ -856,10 +942,7 @@ canvas.addEventListener("pointermove", e => {
 
   const w = canvas.width / (window.devicePixelRatio || 1);
   const h = canvas.height / (window.devicePixelRatio || 1);
-
-  const stageHeight = h * 0.6;
-  const stageY = h * 0.15;
-  const stageMargin = w * 0.1;
+  const { stageMargin, stageHeight, stageY } = getStageMetrics(w, h);
 
   const minX = stageMargin;
   const maxX = w - stageMargin;
