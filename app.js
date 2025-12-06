@@ -2,11 +2,11 @@
 // PRO: realistyczne typy świateł + haze + blending
 // + przycisk "Powiel" w panelu wybranego światła
 // + legenda typów świateł NAD sceną (miniatury, 1–2 rzędy), widoczna też w eksporcie
-// + obrót światła 0–360°
+// + obrót światła -180–180°
 // + osobna długość wiązki (gruba/ cienka vs krótka/ długa)
-// + liczniki świateł w legendzie
+// + liczniki świateł w legendzie (pogrubiona liczba)
 
-// ===== Konfiguracja świateł =====
+//// ===== Konfiguracja świateł =====
 
 const ELEMENT_TYPES = [
   {
@@ -70,13 +70,13 @@ const ELEMENT_TYPES = [
 const STORAGE_KEY = "lighting_designer_projects_v1";
 const LEGEND_AREA_HEIGHT = 72; // miejsce nad sceną na legendę
 
-// ===== Stan aplikacji =====
+//// ===== Stan aplikacji =====
 
 let projects = [];
 let currentProjectId = null;
 let selectedElementId = null;
 
-// ===== Canvas =====
+//// ===== Canvas =====
 
 const canvas = document.getElementById("stageCanvas");
 const ctx = canvas.getContext("2d");
@@ -107,7 +107,7 @@ function getStageMetrics(w, h) {
   return { stageMargin, stageHeight, stageY };
 }
 
-// ===== Projekty =====
+//// ===== Projekty =====
 
 function loadProjects() {
   try {
@@ -151,7 +151,7 @@ function getCurrentProject() {
   return projects.find(p => p.id === currentProjectId) || null;
 }
 
-// ===== UI: projekty + eksport =====
+//// ===== UI: projekty + eksport =====
 
 const projectSelectEl = document.getElementById("projectSelect");
 const newProjectBtn = document.getElementById("newProjectBtn");
@@ -239,7 +239,7 @@ if (exportImageBtn) {
   });
 }
 
-// ===== Paleta =====
+//// ===== Paleta =====
 
 const elementSelectEl = document.getElementById("elementSelect");
 const addElementBtn = document.getElementById("addElementBtn");
@@ -279,7 +279,7 @@ function addElementOfType(typeId) {
     y: 0.2,
     scale: 1,      // ogólny rozmiar / grubość
     beamScale: 1,  // długość wiązki
-    rotation: 0,   // obrót w stopniach
+    rotation: 0,   // obrót w stopniach (-180...180)
     color: type.color
   };
 
@@ -290,7 +290,7 @@ function addElementOfType(typeId) {
   renderScene();
 }
 
-// ===== Rysowanie sceny =====
+//// ===== Rysowanie sceny =====
 
 function renderScene() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -354,7 +354,7 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, z licznikami) =====
+//// ===== Legenda typów świateł (nad sceną, z licznikami) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -373,6 +373,11 @@ function drawLegend(project, w, h) {
   const marginX = 12;
   const marginY = 6;
   const legendHeight = 30;
+
+  const fontNormal =
+    "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+  const fontBold =
+    "bold 10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
 
   // ile ikon w jednym rzędzie
   let maxPerRow;
@@ -398,8 +403,6 @@ function drawLegend(project, w, h) {
     legendHeight / 2;
 
   ctx.save();
-  ctx.font =
-    "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
 
@@ -419,19 +422,24 @@ function drawLegend(project, w, h) {
       if (!type) continue;
 
       const count = countsByTypeId[typeId] || 0;
-      const baseLabel = type.name;
-      const label = `${baseLabel} (${count})`; // licznik zawsze widoczny
+      const labelName = type.name;
+      const labelCount = String(count);
+
+      // szerokości tekstów
+      ctx.font = fontNormal;
+      const nameWidth = ctx.measureText(labelName).width;
+      ctx.font = fontBold;
+      const countWidth = ctx.measureText(labelCount).width;
 
       const centerX = marginX + step * (i + 0.5);
-      const labelWidth = ctx.measureText(label).width;
       const isBar = typeId === "bar";
 
-      // szerokość pigułki: ikona + odstęp + tekst + marginesy
+      // szerokość pigułki: ikona + odstęp + nazwa + licznik + marginesy
       let pillWidth;
       if (isBar) {
-        pillWidth = Math.max(86, labelWidth + 54);
+        pillWidth = Math.max(86, nameWidth + countWidth + 44);
       } else {
-        pillWidth = Math.max(60, labelWidth + 26);
+        pillWidth = Math.max(60, nameWidth + countWidth + 26);
       }
       pillWidth = Math.min(pillWidth, step - 4);
 
@@ -451,22 +459,29 @@ function drawLegend(project, w, h) {
 
       if (isBar) {
         // === LED BAR: mini belka obok napisu, skala zbliżona do reszty ikon ===
-        const barHeight = legendHeight * 0.45; // podobna wysokość co inne miniatury
-        const barWidth = legendHeight * 1.1;   // krótka, ale wyraźna belka
+        const barHeight = legendHeight * 0.1; // podobna wysokość co inne miniatury
+        const barWidth = legendHeight * 0.4;   // krótka, ale wyraźna belka
         const barX = pillX + 8;
         const barY = rowCenterY - barHeight / 2;
 
         ctx.fillStyle = type.color;
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // tekst – na pewno w środku pigułki
-        const textX = Math.min(
-          barX + barWidth + 6,
-          pillX + pillWidth - ctx.measureText(label).width - 6
-        );
+        // Teksty: nazwa + pogrubiona liczba
+        let textX = barX + barWidth + 6;
+        const maxTextX = pillX + pillWidth - 6 - (nameWidth + countWidth + 3);
+        if (textX > maxTextX) textX = maxTextX;
 
         ctx.fillStyle = "#e5e7eb";
-        ctx.fillText(label, textX, rowCenterY + 0.5);
+        ctx.font = fontNormal;
+        ctx.fillText(labelName, textX, rowCenterY + 0.5);
+
+        ctx.font = fontBold;
+        ctx.fillText(
+          labelCount,
+          textX + nameWidth + 3,
+          rowCenterY + 0.5
+        );
       } else {
         // === pozostałe typy ===
         const iconCenterX = pillX + 9;
@@ -475,8 +490,20 @@ function drawLegend(project, w, h) {
 
         drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
+        let textX = pillX + 20;
+        const maxTextX = pillX + pillWidth - 6 - (nameWidth + countWidth + 3);
+        if (textX > maxTextX) textX = maxTextX;
+
         ctx.fillStyle = "#e5e7eb";
-        ctx.fillText(label, pillX + 20, rowCenterY + 0.5);
+        ctx.font = fontNormal;
+        ctx.fillText(labelName, textX, rowCenterY + 0.5);
+
+        ctx.font = fontBold;
+        ctx.fillText(
+          labelCount,
+          textX + nameWidth + 3,
+          rowCenterY + 0.5
+        );
       }
     }
   }
@@ -521,7 +548,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   switch (id) {
     case "spot":
       beamShape = "cone";
-      beamLenFactor = 0.45;
+      beamLenFactor = 0.5;  // trochę dłużej niż wcześniej
       topWidthFactor = 0.6;
       bottomWidthFactor = 1.5;
       startAlpha = 0.95;
@@ -531,7 +558,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
       break;
     case "wash":
       beamShape = "cone";
-      beamLenFactor = 0.5;
+      beamLenFactor = 0.45; // krótszy, szeroki
       topWidthFactor = 1.2;
       bottomWidthFactor = 2.4;
       startAlpha = 0.75;
@@ -541,7 +568,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
       break;
     case "beam":
       beamShape = "cone";
-      beamLenFactor = 0.7;
+      beamLenFactor = 0.8;  // wyraźnie najdłuższy
       topWidthFactor = 0.25;
       bottomWidthFactor = 0.9;
       startAlpha = 1.0;
@@ -551,7 +578,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
       break;
     case "profile":
       beamShape = "rect";
-      beamLenFactor = 0.55;
+      beamLenFactor = 0.5;
       startAlpha = 0.95;
       midAlpha = 0.6;
       endAlpha = 0.15;
@@ -577,7 +604,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // ===== mini wiązka =====
+  // ===== mini wiązka (tu bez beamScale – ikony tylko jako podgląd typu) =====
   if (beamShape === "cone") {
     let beamLength = Math.min(baseH * beamLenFactor * 4, maxHeight);
     let topW = baseW * topWidthFactor;
@@ -614,8 +641,8 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
 
     ctx.fillRect(-width / 2, 0, width, beamLength);
   } else if (beamShape === "fresnel" || beamShape === "par") {
-    const radiusBase = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
-    let radius = Math.min(radiusBase, maxHeight * 0.6);
+    const baseRadius = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
+    let radius = Math.min(baseRadius, maxHeight * 0.6);
     let radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
     let radiusY = radius;
 
@@ -638,8 +665,8 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
     ctx.restore();
   } else if (beamShape === "strobe") {
-    const radiusBase = baseH;
-    let radius = Math.min(radiusBase, maxHeight * 0.6);
+    const baseRadius = baseH;
+    let radius = Math.min(baseRadius, maxHeight * 0.6);
     radius = Math.min(radius, maxIconWidth / 2);
 
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
@@ -710,8 +737,8 @@ function drawElement(el, w, h) {
 
   const rawW = type.width;
   const rawH = type.height;
-  const baseW = rawW * el.scale;              // zawsze skaluje się szerokość
-  const baseH = rawH * (isBar ? 1 : el.scale); // wysokość stała dla LED bara
+  const baseW = rawW * (el.scale || 1);              // szerokość
+  const baseH = rawH * (isBar ? 1 : (el.scale || 1)); // wysokość stała dla LED bara
 
   const minX = stageMargin;
   const maxX = w - stageMargin;
@@ -724,7 +751,7 @@ function drawElement(el, w, h) {
   ctx.save();
   ctx.translate(x, y);
 
-  // obrót 0–360°
+  // obrót -180–180°
   const rotationRad = (el.rotation || 0) * Math.PI / 180;
   ctx.rotate(rotationRad);
 
@@ -742,7 +769,7 @@ function drawElement(el, w, h) {
   switch (id) {
     case "spot":
       beamShape = "cone";
-      beamLenFactor = 0.45;
+      beamLenFactor = 0.5;  // dłuższy niż wash, krótszy niż beam
       topWidthFactor = 0.6;
       bottomWidthFactor = 1.5;
       startAlpha = 0.95;
@@ -752,7 +779,7 @@ function drawElement(el, w, h) {
       break;
     case "wash":
       beamShape = "cone";
-      beamLenFactor = 0.5;
+      beamLenFactor = 0.45; // szeroka, ale bardziej „płaska”
       topWidthFactor = 1.2;
       bottomWidthFactor = 2.4;
       startAlpha = 0.75;
@@ -762,7 +789,7 @@ function drawElement(el, w, h) {
       break;
     case "beam":
       beamShape = "cone";
-      beamLenFactor = 0.7;
+      beamLenFactor = 0.8;  // wąska, długa wiązka
       topWidthFactor = 0.25;
       bottomWidthFactor = 0.9;
       startAlpha = 1.0;
@@ -776,7 +803,7 @@ function drawElement(el, w, h) {
       break;
     case "profile":
       beamShape = "rect";
-      beamLenFactor = 0.55;
+      beamLenFactor = 0.5;
       startAlpha = 0.95;
       midAlpha = 0.6;
       endAlpha = 0.15;
@@ -808,7 +835,7 @@ function drawElement(el, w, h) {
   ctx.globalCompositeOperation = "lighter";
 
   if (beamShape === "cone") {
-    const beamLength = h * beamLenFactor * el.scale * beamScale;
+    const beamLength = h * beamLenFactor * (el.scale || 1) * beamScale;
     const topWidth = baseW * topWidthFactor;
     const bottomWidth = baseW * bottomWidthFactor;
 
@@ -843,7 +870,7 @@ function drawElement(el, w, h) {
     ctx.arc(0, hazeCenterY, hazeRadius, 0, Math.PI * 2);
     ctx.fill();
   } else if (beamShape === "rect") {
-    const beamLength = h * beamLenFactor * el.scale * beamScale;
+    const beamLength = h * beamLenFactor * (el.scale || 1) * beamScale;
     const width = baseW * 1.1;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
@@ -860,7 +887,7 @@ function drawElement(el, w, h) {
     }
     ctx.fill();
   } else if (beamShape === "bar") {
-    // LED bar – wiązka pionowa, długość zależna od beamScale, szerokość = szerokość frontu
+    // LED bar – „ściana światła” za belką
     const barWidth = baseW * 2.0; // zgodna z szerokością frontu
     const barHeight = baseH * 1.6 * beamScale;
 
@@ -889,7 +916,10 @@ function drawElement(el, w, h) {
     }
     ctx.fill();
   } else if (beamShape === "fresnel" || beamShape === "par") {
-    const radiusBase = beamShape === "fresnel" ? baseH * 2.2 : baseH * 1.6;
+    // Fresnel/PAR – plama światła, beamScale wpływa na promień
+    const baseRadius = beamShape === "fresnel" ? baseH * 2.2 : baseH * 1.6;
+    const scaledRadius = baseRadius * (0.7 + 0.6 * beamScale); // 0.7–1.9x
+    const radiusBase = scaledRadius;
     const radiusX = radiusBase * (beamShape === "fresnel" ? 1.5 : 1.3);
     const radiusY = radiusBase;
 
@@ -908,7 +938,10 @@ function drawElement(el, w, h) {
     ctx.fill();
     ctx.restore();
   } else if (beamShape === "strobe") {
-    const radius = baseH * 1.8;
+    // główny flash – trochę reaguje na beamScale
+    const baseRadius = baseH * 1.8;
+    const radius = baseRadius * (0.7 + 0.6 * beamScale);
+
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     grad.addColorStop(0, hexToRgba("#ffffff", 1.0));
     grad.addColorStop(0.4, hexToRgba(color, 0.9));
@@ -922,7 +955,7 @@ function drawElement(el, w, h) {
     ctx.fill();
     ctx.restore();
 
-    const beamLength = h * 0.45 * el.scale * beamScale;
+    const beamLength = h * 0.45 * (el.scale || 1) * beamScale;
     const beamGrad = ctx.createLinearGradient(0, 0, 0, beamLength);
     beamGrad.addColorStop(0, hexToRgba("#ffffff", 0.95));
     beamGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -1017,7 +1050,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// ===== Drag & drop =====
+//// ===== Drag & drop =====
 
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
@@ -1146,13 +1179,14 @@ function endPointerDrag(e) {
 canvas.addEventListener("pointerup", endPointerDrag);
 canvas.addEventListener("pointercancel", endPointerDrag);
 
-// ===== Panel właściwości + Powiel =====
+//// ===== Panel właściwości + Powiel =====
 
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
 const propScaleEl = document.getElementById("propScale");
 const propBeamScaleEl = document.getElementById("propBeamScale");
 const propRotationEl = document.getElementById("propRotation");
+const propRotationValueEl = document.getElementById("propRotationValue");
 const propColorEl = document.getElementById("propColor");
 const deleteElementBtn = document.getElementById("deleteElementBtn");
 const duplicateElementBtn = document.getElementById("duplicateElementBtn");
@@ -1178,6 +1212,9 @@ function updatePropertiesPanel() {
       propRotationEl.value = 0;
       propRotationEl.disabled = true;
     }
+    if (propRotationValueEl) {
+      propRotationValueEl.textContent = "0°";
+    }
     if (propColorEl) {
       propColorEl.value = "#ffffff";
       propColorEl.disabled = true;
@@ -1201,6 +1238,10 @@ function updatePropertiesPanel() {
   if (propRotationEl) {
     propRotationEl.disabled = false;
     propRotationEl.value = (el.rotation ?? 0).toFixed(0);
+  }
+  if (propRotationValueEl) {
+    const rot = Math.round(el.rotation ?? 0);
+    propRotationValueEl.textContent = `${rot}°`;
   }
   if (propColorEl) {
     propColorEl.disabled = false;
@@ -1241,6 +1282,9 @@ if (propRotationEl) {
     const el = project.elements.find(e => e.id === selectedElementId);
     if (!el) return;
     el.rotation = parseFloat(propRotationEl.value) || 0;
+    if (propRotationValueEl) {
+      propRotationValueEl.textContent = `${Math.round(el.rotation)}°`;
+    }
     saveProjects();
     renderScene();
   });
@@ -1298,7 +1342,7 @@ if (duplicateElementBtn) {
   });
 }
 
-// ===== Inicjalizacja =====
+//// ===== Inicjalizacja =====
 
 function init() {
   loadProjects();

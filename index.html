@@ -45,7 +45,6 @@
 
         <!-- Wybrane światło -->
         <section class="properties-section">
-          <h2>Wybrane światło</h2>
           <div id="propertiesPanel" class="properties">
             <div class="properties-grid">
               <div class="panel" id="propertiesPanel">
@@ -71,15 +70,17 @@
                   <input type="range" id="propBeamScale" min="0.4" max="2" step="0.01">
                 </div>
 
-                <div class="prop-row">
-                  <label class="prop-label" for="propRotation">Obrót</label>
-                  <input type="range" id="propRotation" min="0" max="360" step="1">
-                </div>
+                  <div class="prop-row">
+                    <label class="prop-label" for="propRotation">Obrót</label>
+                    <!-- środek suwaka = 0° -->
+                    <input type="range" id="propRotation" min="-180" max="180" step="1">
+                    <span id="propRotationValue">0°</span>
+                  </div>
 
-                <div class="prop-row">
-                  <button id="deleteElementBtn">Usuń element</button>
-                  <button id="duplicateElementBtn">Powiel</button>
-                </div>
+                <div class="properties-actions">
+                  <button id="duplicateElementBtn" class="btn small">Powiel</button>
+                <button id="deleteElementBtn" class="btn danger small">Usuń</button>
+               </div>
               </div>
           </div>
         </section>
