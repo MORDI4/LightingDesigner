@@ -342,7 +342,7 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, 1–2 rzędy, LED bar obok napisu) =====
+// ===== Legenda typów świateł (nad sceną, LED bar rysowany ręcznie) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -355,7 +355,7 @@ function drawLegend(project, w, h) {
   const marginY = 6;
   const legendHeight = 30;
 
-  // ile ikon w rzędzie
+  // ile ikon w jednym rzędzie
   let maxPerRow;
   if (w <= 430) {
     maxPerRow = 5;
@@ -403,9 +403,9 @@ function drawLegend(project, w, h) {
       const label = type.name;
       const labelWidth = ctx.measureText(label).width;
 
-      // pigułka zawsze liczy: ikonka + odstęp + tekst + margines
-      let pillWidth = labelWidth + 26;
-      pillWidth = Math.max(52, pillWidth);
+      // pigułka: miejsce na ikonkę + odstęp + tekst + margines
+      let pillWidth = labelWidth + 30;
+      pillWidth = Math.max(pillWidth, 60);
       pillWidth = Math.min(pillWidth, step - 6);
 
       const pillHeight = legendHeight;
@@ -422,15 +422,35 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      // ikona (w tym LED bar) – zawsze po lewej
-      const iconCenterX = pillX + 9;
-      const iconCenterY = rowCenterY - 1;
-      const iconMaxHeight = legendHeight * 0.55;
-      drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
+      // --- SPECJALNY CASE: LED bar ---
+      if (typeId === "bar") {
+        // zielona belka po lewej, trochę krótsza niż normalny bar
+        const barHeight = legendHeight * 0.35;          // wyraźna grubość
+        const barWidth = Math.min(pillWidth * 0.45, 26); // krótsza niż scena
+        const barX = pillX + 8;
+        const barY = rowCenterY - barHeight / 2;
 
-      // tekst – po prawej
-      ctx.fillStyle = "#e5e7eb";
-      ctx.fillText(label, pillX + 20, rowCenterY + 0.5);
+        ctx.fillStyle = type.color;
+        if (ctx.roundRect) {
+          ctx.roundRect(barX, barY, barWidth, barHeight, 3);
+        } else {
+          ctx.fillRect(barX, barY, barWidth, barHeight);
+        }
+
+        // tekst po prawej od belki
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillText(label, barX + barWidth + 6, rowCenterY + 0.5);
+      } else {
+        // --- pozostałe typy: ikona z drawLegendIcon + tekst ---
+        const iconCenterX = pillX + 9;
+        const iconCenterY = rowCenterY - 1;
+        const iconMaxHeight = legendHeight * 0.55;
+
+        drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
+
+        ctx.fillStyle = "#e5e7eb";
+        ctx.fillText(label, pillX + 20, rowCenterY + 0.5);
+      }
     }
   }
 
