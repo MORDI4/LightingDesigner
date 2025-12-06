@@ -33,7 +33,7 @@
 
     <main class="layout">
       <aside class="sidebar">
-        <!-- SEKCJA 1: Paleta świateł na całą szerokość -->
+        <!-- Paleta świateł -->
         <section class="palette-section">
           <h2>Paleta świateł</h2>
           <p class="helper">Wybierz typ i kliknij „Dodaj”.</p>
@@ -43,7 +43,7 @@
           </div>
         </section>
 
-        <!-- SEKCJA 2: Stałe miejsce na parametry wybranego światła -->
+        <!-- Wybrane światło -->
         <section class="properties-section">
           <h2>Wybrane światło</h2>
           <div id="propertiesPanel" class="properties">
@@ -61,7 +61,10 @@
                 <input type="color" id="propColor" />
               </div>
             </div>
-            <button id="deleteElementBtn" class="btn danger small full-width">Usuń element</button>
+            <div class="properties-actions">
+              <button id="duplicateElementBtn" class="btn small">Powiel</button>
+              <button id="deleteElementBtn" class="btn danger small">Usuń</button>
+            </div>
           </div>
         </section>
       </aside>

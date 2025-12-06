@@ -1,5 +1,6 @@
 // Lighting Designer 2D - PWA, vanilla JS
-// PRO: realistyczne typy świateł (różne wiązki + haze + blending), BEZ tilt i dodatków w profile/bar
+// PRO: realistyczne typy świateł + haze + blending, BEZ tilt/dodatków w profile/bar
+// + przycisk "Powiel" w panelu wybranego światła
 
 // ===== Konfiguracja świateł =====
 
@@ -174,7 +175,7 @@ if (exportImageBtn) {
   });
 }
 
-// ===== Paleta jako dropdown =====
+// ===== Paleta =====
 
 const elementSelectEl = document.getElementById("elementSelect");
 const addElementBtn = document.getElementById("addElementBtn");
@@ -306,7 +307,6 @@ function drawElement(el, w, h) {
   const color = el.color || type.color;
   const id = type.id;
 
-  // Parametry wiązki
   let beamShape = "cone"; // cone, rect, bar, fresnel, par, strobe
   let beamLenFactor = 0.3;
   let topWidthFactor = 1.0;
@@ -314,7 +314,7 @@ function drawElement(el, w, h) {
   let startAlpha = 0.9;
   let midAlpha = 0.4;
   let endAlpha = 0.0;
-  let intensity = 1.0;    // 0..1
+  let intensity = 1.0;
 
   switch (id) {
     case "spot":
@@ -380,7 +380,7 @@ function drawElement(el, w, h) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // --- BEAMS & HAZE (additive blend) ---
+  // BEAMS & HAZE
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
@@ -417,7 +417,6 @@ function drawElement(el, w, h) {
     ctx.fill();
 
   } else if (beamShape === "rect") {
-    // Profil – prosta prostokątna wiązka, bez GOBO
     const beamLength = h * beamLenFactor * el.scale;
     const width = baseW * 1.1;
 
@@ -432,7 +431,6 @@ function drawElement(el, w, h) {
     ctx.fill();
 
   } else if (beamShape === "bar") {
-    // LED bar – ściana światła, bez segmentów
     const barWidth = baseW * 3.2;
     const barHeight = baseH * 0.4;
 
@@ -494,9 +492,9 @@ function drawElement(el, w, h) {
     ctx.fill();
   }
 
-  ctx.restore(); // koniec beams + haze
+  ctx.restore(); // beams + haze
 
-  // --- FIXTURE & GLOW ---
+  // FIXTURE & GLOW
 
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -531,7 +529,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// ===== Drag & drop (iPhone + desktop) =====
+// ===== Drag & drop =====
 
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
@@ -661,13 +659,14 @@ function endPointerDrag(e) {
 canvas.addEventListener("pointerup", endPointerDrag);
 canvas.addEventListener("pointercancel", endPointerDrag);
 
-// ===== Panel właściwości =====
+// ===== Panel właściwości + Powiel =====
 
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
 const propScaleEl = document.getElementById("propScale");
 const propColorEl = document.getElementById("propColor");
 const deleteElementBtn = document.getElementById("deleteElementBtn");
+const duplicateElementBtn = document.getElementById("duplicateElementBtn");
 
 function updatePropertiesPanel() {
   const project = getCurrentProject();
@@ -685,9 +684,8 @@ function updatePropertiesPanel() {
       propColorEl.value = "#ffffff";
       propColorEl.disabled = true;
     }
-    if (deleteElementBtn) {
-      deleteElementBtn.disabled = true;
-    }
+    if (deleteElementBtn) deleteElementBtn.disabled = true;
+    if (duplicateElementBtn) duplicateElementBtn.disabled = true;
     return;
   }
 
@@ -702,9 +700,8 @@ function updatePropertiesPanel() {
     propColorEl.disabled = false;
     propColorEl.value = el.color || (type ? type.color : "#ffffff");
   }
-  if (deleteElementBtn) {
-    deleteElementBtn.disabled = false;
-  }
+  if (deleteElementBtn) deleteElementBtn.disabled = false;
+  if (duplicateElementBtn) duplicateElementBtn.disabled = false;
 }
 
 if (propScaleEl) {
@@ -739,6 +736,30 @@ if (deleteElementBtn) {
 
     project.elements = project.elements.filter(e => e.id !== selectedElementId);
     selectedElementId = null;
+    saveProjects();
+    updatePropertiesPanel();
+    renderScene();
+  });
+}
+
+if (duplicateElementBtn) {
+  duplicateElementBtn.addEventListener("click", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    if (!selectedElementId) return;
+
+    const original = project.elements.find(e => e.id === selectedElementId);
+    if (!original) return;
+
+    const clone = {
+      ...original,
+      id: crypto.randomUUID(),
+      x: Math.min(0.98, original.x + 0.04),
+      y: Math.min(0.98, original.y + 0.02)
+    };
+
+    project.elements.push(clone);
+    selectedElementId = clone.id;
     saveProjects();
     updatePropertiesPanel();
     renderScene();
