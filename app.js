@@ -1,7 +1,7 @@
 // Lighting Designer 2D - PWA, vanilla JS
 // PRO: realistyczne typy świateł + haze + blending, BEZ tilt/dodatków w profile/bar
 // + przycisk "Powiel" w panelu wybranego światła
-// + legenda typów świateł na dole sceny (ikona + nazwa), widoczna też w eksporcie
+// + legenda typów świateł na dole sceny (miniatury), widoczna też w eksporcie
 
 // ===== Konfiguracja świateł =====
 
@@ -233,7 +233,6 @@ function renderScene() {
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
 
-  // tło
   const gradBg = ctx.createLinearGradient(0, 0, 0, h);
   gradBg.addColorStop(0, "#020617");
   gradBg.addColorStop(0.4, "#020617");
@@ -248,7 +247,6 @@ function renderScene() {
   const stageY = h * 0.15;
   const stageMargin = w * 0.1;
 
-  // scena + siatka
   ctx.save();
   ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
   ctx.lineWidth = 1;
@@ -278,250 +276,229 @@ function renderScene() {
 
   ctx.restore();
 
-  // wszystkie światła
   for (const el of project.elements) {
     drawElement(el, w, h);
   }
 
-  // legenda typów świateł na dole sceny
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł =====
-
+// ===== Legenda typów świateł (miniatury, 1–2 rzędy) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
-  // unikalne typy na scenie
-  const typeIds = Array.from(
-    new Set(project.elements.map(el => el.typeId).filter(Boolean))
-  );
-
+  const typeIds = Array.from(new Set(project.elements.map(el => el.typeId).filter(Boolean)));
   if (!typeIds.length) return;
 
-  const marginX = 16;
+  const marginX = 12;
   const marginY = 6;
-  const legendHeight = 32; // wysokość paska legendy
-  const baseY = h - marginY - legendHeight / 2; // środek legendy
+  const legendHeight = 30;
+  const bottomOffset = 18; // odstęp od dolnej krawędzi / paska home na iPhonie
 
-  const availableWidth = w - marginX * 2;
-  const step = Math.min(120, availableWidth / typeIds.length);
+  // Ile ikon w jednym rzędzie w zależności od szerokości ekranu
+  let maxPerRow;
+  if (w <= 430) {
+    // bardzo wąskie ekrany – max 5 ikon w rzędzie
+    maxPerRow = 5;
+  } else if (w <= 768) {
+    // typowy iPhone w pionie – max 6 ikon
+    maxPerRow = 6;
+  } else {
+    // desktop – wszystko w jednym rzędzie (w razie czego i tak wejdzie w 2 rzędy)
+    maxPerRow = typeIds.length;
+  }
+
+  const totalRows = Math.min(2, Math.ceil(typeIds.length / maxPerRow));
+  const rowHeight = legendHeight + 4;
+  const bottomRowCenterY = h - marginY - legendHeight / 2 - bottomOffset;
 
   ctx.save();
   ctx.font = "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
 
-  typeIds.forEach((typeId, index) => {
-    const type = ELEMENT_TYPES.find(t => t.id === typeId);
-    if (!type) return;
+  for (let row = 0; row < totalRows; row++) {
+    const startIndex = row * maxPerRow;
+    const endIndex = Math.min(startIndex + maxPerRow, typeIds.length);
+    const itemsInRow = endIndex - startIndex;
+    if (!itemsInRow) continue;
 
-    const x = marginX + index * step;
-    const pillWidth = 70;
-    const pillHeight = legendHeight - 4;
-    const pillX = x - 4;
-    const pillY = baseY - pillHeight / 2;
+    const availableWidth = w - marginX * 2;
+    const step = Math.min(120, availableWidth / itemsInRow);
+    const rowCenterY = bottomRowCenterY - (totalRows - 1 - row) * rowHeight;
 
-    // tło "pill" pod ikoną i tekstem
-    ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 10);
-    } else {
-      ctx.rect(pillX, pillY, pillWidth, pillHeight);
-    }
-    ctx.fill();
+    for (let i = 0; i < itemsInRow; i++) {
+      const typeId = typeIds[startIndex + i];
+      const type = ELEMENT_TYPES.find(t => t.id === typeId);
+      if (!type) continue;
 
-    // ikona
-    const iconCenterX = x + 10;
-    const iconCenterY = baseY;
-    drawLegendIcon(type, iconCenterX, iconCenterY);
+      const centerX = marginX + step * (i + 0.5);
 
-    // podpis
-    ctx.fillStyle = "#e5e7eb";
-    ctx.fillText(type.name, x + 18, baseY + 0.5);
-  });
+      // szerokość pigułki zależna od typu (szersze światła = szersza ikonka)
+      let pillWidth = 56;
+      if (["wash", "bar", "fresnel"].includes(typeId)) pillWidth = 68;
+      if (step - 10 < pillWidth) pillWidth = step - 10; // żeby nie wyjechało poza krok
 
-  ctx.restore();
-}
+      const pillHeight = legendHeight;
+      const pillX = centerX - pillWidth / 2;
+      const pillY = rowCenterY - pillHeight / 2;
 
-function drawLegendIcon(type, cx, cy) {
-  ctx.save();
-  ctx.translate(cx, cy);
-
-  const color = type.color;
-  const id = type.id;
-  const scale = 0.4;
-  const baseW = type.width * scale;
-  const baseH = type.height * scale;
-
-  ctx.lineWidth = 1;
-
-  switch (id) {
-    case "beam": {
-      // wąski stożek + mały klocek
-      const beamLength = baseH * 2.0;
-      const topWidth = baseW * 0.3;
-      const bottomWidth = baseW * 0.9;
-      ctx.fillStyle = color;
+      // tło pigułki
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
       ctx.beginPath();
-      ctx.moveTo(-topWidth / 2, 0);
-      ctx.lineTo(topWidth / 2, 0);
-      ctx.lineTo(bottomWidth / 2, beamLength);
-      ctx.lineTo(-bottomWidth / 2, beamLength);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "#0f172a";
       if (ctx.roundRect) {
-        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+        ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 10);
       } else {
-        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
-      break;
-    }
-    case "wash": {
-      const beamLength = baseH * 2.0;
-      const topWidth = baseW * 0.9;
-      const bottomWidth = baseW * 1.8;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(-topWidth / 2, 0);
-      ctx.lineTo(topWidth / 2, 0);
-      ctx.lineTo(bottomWidth / 2, beamLength);
-      ctx.lineTo(-bottomWidth / 2, beamLength);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "#0f172a";
-      if (ctx.roundRect) {
-        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
-      } else {
-        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
-      break;
-    }
-    case "spot": {
-      const beamLength = baseH * 1.8;
-      const topWidth = baseW * 0.6;
-      const bottomWidth = baseW * 1.4;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(-topWidth / 2, 0);
-      ctx.lineTo(topWidth / 2, 0);
-      ctx.lineTo(bottomWidth / 2, beamLength);
-      ctx.lineTo(-bottomWidth / 2, beamLength);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "#0f172a";
-      if (ctx.roundRect) {
-        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
-      } else {
-        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
-      break;
-    }
-    case "bar": {
-      // pozioma belka
-      const barWidth = baseW * 2.4;
-      const barHeight = baseH * 0.5;
-      ctx.fillStyle = color;
-      if (ctx.roundRect) {
-        ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
-      } else {
-        ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
-      }
-      ctx.fill();
-      break;
-    }
-    case "profile": {
-      // prostokątna plama + klocek
-      const beamLength = baseH * 1.8;
-      const width = baseW * 1.1;
-      ctx.fillStyle = color;
-      if (ctx.roundRect) {
-        ctx.roundRect(-width / 2, 0, width, beamLength, 3);
-      } else {
-        ctx.rect(-width / 2, 0, width, beamLength);
+        ctx.rect(pillX, pillY, pillWidth, pillHeight);
       }
       ctx.fill();
 
-      ctx.fillStyle = "#0f172a";
-      if (ctx.roundRect) {
-        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
-      } else {
-        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
-      break;
-    }
-    case "fresnel":
-    case "par": {
-      // owalna plama
-      const radius = baseH * (id === "fresnel" ? 1.3 : 1.0);
-      const radiusX = radius * (id === "fresnel" ? 1.4 : 1.2);
-      const radiusY = radius;
+      // mini-ikonka – ta sama geometria co na scenie, tylko skrócona wiązka
+      const iconCenterX = pillX + 10;
+      const iconCenterY = rowCenterY - 2;
+      const iconMaxHeight = legendHeight * 0.7;
+      drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
-      ctx.save();
-      ctx.translate(0, baseH * 0.4);
-      ctx.scale(radiusX / radius, radiusY / radius);
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-      grad.addColorStop(0, color);
-      grad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.fillStyle = "#0f172a";
-      if (ctx.roundRect) {
-        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
-      } else {
-        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
-      break;
-    }
-    case "strobe": {
-      const radius = baseH * 1.0;
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-      grad.addColorStop(0, "#ffffff");
-      grad.addColorStop(0.5, color);
-      grad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
-    default: {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(0, 0, baseH * 0.8, 0, Math.PI * 2);
-      ctx.fill();
-      break;
+      // podpis typu
+      ctx.fillStyle = "#e5e7eb";
+      ctx.fillText(type.name, pillX + 20, rowCenterY + 0.5);
     }
   }
 
   ctx.restore();
 }
 
-// ===== Rysowanie pojedynczego światła (pełne) =====
+// miniatury bazujące na tych samych kształtach co na scenie (tylko krótsze wiązki)
+function drawLegendIcon(type, cx, cy, maxHeight) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const color = type.color;
+  const id = type.id;
+
+  // skalujemy w dół względem pełnych wymiarów
+  const scale = 0.35;
+  const baseW = type.width * scale;
+  const baseH = type.height * scale;
+
+  // parametry wiązki takie jak w drawElement, ale krótsze
+  let beamShape = "cone";
+  let beamLenFactor = 1.8;
+  let topWidthFactor = 1.0;
+  let bottomWidthFactor = 1.6;
+
+  switch (id) {
+    case "spot":
+      beamShape = "cone";
+      beamLenFactor = 1.6;
+      topWidthFactor = 0.6;
+      bottomWidthFactor = 1.4;
+      break;
+    case "wash":
+      beamShape = "cone";
+      beamLenFactor = 1.6;
+      topWidthFactor = 1.0;
+      bottomWidthFactor = 2.0;
+      break;
+    case "beam":
+      beamShape = "cone";
+      beamLenFactor = 2.0;
+      topWidthFactor = 0.3;
+      bottomWidthFactor = 0.9;
+      break;
+    case "bar":
+      beamShape = "bar";
+      break;
+    case "profile":
+      beamShape = "rect";
+      beamLenFactor = 1.6;
+      break;
+    case "fresnel":
+      beamShape = "fresnel";
+      break;
+    case "par":
+      beamShape = "par";
+      break;
+    case "strobe":
+      beamShape = "strobe";
+      break;
+    default:
+      beamShape = "cone";
+  }
+
+  const maxBeamLength = maxHeight; // żeby się zmieściło w pigułce
+
+  // wiązka (bez haze, tylko kształt)
+  ctx.fillStyle = color;
+
+  if (beamShape === "cone") {
+    let beamLength = baseH * beamLenFactor;
+    beamLength = Math.min(beamLength, maxBeamLength);
+    const topWidth = baseW * topWidthFactor;
+    const bottomWidth = baseW * bottomWidthFactor;
+
+    ctx.beginPath();
+    ctx.moveTo(-topWidth / 2, 0);
+    ctx.lineTo(topWidth / 2, 0);
+    ctx.lineTo(bottomWidth / 2, beamLength);
+    ctx.lineTo(-bottomWidth / 2, beamLength);
+    ctx.closePath();
+    ctx.fill();
+  } else if (beamShape === "rect") {
+    let beamLength = baseH * beamLenFactor;
+    beamLength = Math.min(beamLength, maxBeamLength);
+    const width = baseW * 1.1;
+
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(-width / 2, 0, width, beamLength, 3);
+    } else {
+      ctx.rect(-width / 2, 0, width, beamLength);
+    }
+    ctx.fill();
+  } else if (beamShape === "bar") {
+    const barWidth = baseW * 2.3;
+    const barHeight = Math.min(baseH * 0.8, maxBeamLength * 0.5);
+    if (ctx.roundRect) {
+      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
+    } else {
+      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
+    }
+    ctx.fill();
+  } else if (beamShape === "fresnel" || beamShape === "par") {
+    const radius = Math.min(baseH * (beamShape === "fresnel" ? 1.3 : 1.0), maxBeamLength * 0.6);
+    const radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
+    const radiusY = radius;
+
+    ctx.save();
+    ctx.translate(0, radius * 0.2);
+    ctx.scale(radiusX / radius, radiusY / radius);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (beamShape === "strobe") {
+    const radius = Math.min(baseH, maxBeamLength * 0.6);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // fixture – mały prostokącik nad początkiem wiązki (tam, gdzie na scenie)
+  const fixtureH = baseH * 0.7;
+  const fixtureW = baseW;
+  ctx.fillStyle = color;
+  if (ctx.roundRect) {
+    ctx.roundRect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH, 3);
+  } else {
+    ctx.rect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH);
+  }
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===== Rysowanie pojedynczego światła (pełny kształt) =====
 
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
@@ -614,7 +591,6 @@ function drawElement(el, w, h) {
       break;
     default:
       beamShape = "cone";
-      break;
   }
 
   const sA = startAlpha * intensity;
