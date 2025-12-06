@@ -6,15 +6,64 @@
 // ===== Konfiguracja świateł =====
 
 const ELEMENT_TYPES = [
-  { id: "spot",    name: "Spot",    color: "#facc15", width: 40, height: 40 },
-  { id: "wash",    name: "Wash",    color: "#fb923c", width: 50, height: 50 },
-  { id: "beam",    name: "Beam",    color: "#38bdf8", width: 30, height: 60 },
-  { id: "bar",     name: "LED bar", color: "#22c55e", width: 80, height: 20 },
-  { id: "profile", name: "Profil",  color: "#e5e7eb", width: 36, height: 60 },
-  { id: "fresnel", name: "Fresnel", color: "#fed7aa", width: 44, height: 44 },
-  { id: "par",     name: "PAR",     color: "#bbf7d0", width: 32, height: 32 },
-  { id: "strobe",  name: "Strobe",  color: "#f9fafb", width: 30, height: 24 }
+  {
+    id: "spot",
+    name: "Spot",
+    color: "#f5c542",  // ciepły żółty – klasyczny front spot
+    width: 40,
+    height: 60
+  },
+  {
+    id: "wash",
+    name: "Wash",
+    color: "#f48b2a", // pomarańczowy – szeroka barwa wash
+    width: 45,
+    height: 70
+  },
+  {
+    id: "beam",
+    name: "Beam",
+    color: "#3fb4ff", // niebieski – charakterystyczny dla beamów
+    width: 28,
+    height: 70
+  },
+  {
+    id: "bar",
+    name: "LED bar",
+    color: "#38d870", // zielony – czytelny, odróżnia się od reszty
+    width: 60,
+    height: 15
+  },
+  {
+    id: "profile",
+    name: "Profil",
+    color: "#ffffff", // białe profilówki – klasyka teatralna
+    width: 35,
+    height: 60
+  },
+  {
+    id: "fresnel",
+    name: "Fresnel",
+    color: "#f3cd9b", // jasny brzoskwiniowy – naturalna barwa fresnela
+    width: 50,
+    height: 40
+  },
+  {
+    id: "par",
+    name: "PAR",
+    color: "#b6f5c8", // mięta – łatwo rozróżnić jako PAR
+    width: 45,
+    height: 35
+  },
+  {
+    id: "strobe",
+    name: "Strobe",
+    color: "#ffffff", // strobe musi być biały
+    width: 30,
+    height: 50
+  }
 ];
+
 
 const STORAGE_KEY = "lighting_designer_projects_v1";
 const LEGEND_AREA_HEIGHT = 72; // miejsce nad sceną na legendę
@@ -354,24 +403,19 @@ function drawLegend(project, w, h) {
 
       const isBar = typeId === "bar";
 
-      // minimalna szerokość pigułki tak, żeby była:
-      //   - ikona po lewej + tekst po prawej (większość)
-      //   - tekst nad ikoną (LED bar)
+      // szerokość pigułki = wynik z tekstu + małe marginesy
       let pillWidth;
       if (isBar) {
-        pillWidth = labelWidth + 20; // trochę marginesu
+        // tekst nad ikonką
+        pillWidth = labelWidth + 20;
       } else {
-        pillWidth = labelWidth + 22; // 8 na ikonę + przerwa + margines
+        // ikona po lewej, tekst po prawej
+        pillWidth = labelWidth + 22; // ~8px ikony + odstęp + margines
       }
 
-      // lekkie poszerzenie dla szerokich ikon
-      if (["wash", "fresnel"].includes(typeId)) {
-        pillWidth += 6;
-      }
-
-      // nie przekraczamy dostępnego kroku
+      // minimalna / maksymalna szerokość
+      pillWidth = Math.max(pillWidth, 52);
       pillWidth = Math.min(pillWidth, step - 6);
-      pillWidth = Math.max(pillWidth, 48); // minimalna
 
       const pillHeight = legendHeight;
       const pillX = centerX - pillWidth / 2;
@@ -387,17 +431,17 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      // MINI IKONKA
+      // MINI IKONA
       let iconCenterX, iconCenterY, iconMaxHeight;
 
       if (isBar) {
-        // LED bar: tekst nad, cienka belka pod spodem
+        // LED bar: tekst nad, cienka belka na środku
         iconCenterX = centerX;
         iconCenterY = rowCenterY + 6;
-        iconMaxHeight = legendHeight * 0.35;
+        iconMaxHeight = legendHeight * 0.32;
       } else {
-        // pozostałe: ikona po lewej, tekst po prawej
-        iconCenterX = pillX + 8;
+        // reszta: ikona po lewej
+        iconCenterX = pillX + 9;
         iconCenterY = rowCenterY - 1;
         iconMaxHeight = legendHeight * 0.5;
       }
@@ -419,7 +463,7 @@ function drawLegend(project, w, h) {
   ctx.restore();
 }
 
-// miniatury – ta sama geometria i gradient co na scenie, tylko pomniejszone
+// miniatury – ta sama geometria co na scenie, ale mocno pomniejszona
 function drawLegendIcon(type, cx, cy, maxHeight) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -427,12 +471,13 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const color = type.color;
   const id = type.id;
 
-  // jeszcze mniejsza skala, żeby na pewno nie wchodzić w tekst
-  const scale = 0.18;
+  const scale = 0.18; // bazowa skala
   const baseW = type.width * scale;
   const baseH = type.height * scale;
 
-  // konfiguracja wiązki 1:1 z drawElement
+  const maxIconWidth = 12; // maksymalna szerokość ikony (żeby nie wchodziła na tekst)
+
+  // konfiguracja wiązki jak w drawElement
   let beamShape = "cone";
   let beamLenFactor = 0.3;
   let topWidthFactor = 1.0;
@@ -505,12 +550,17 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // WIĄZKA – ta sama logika co w drawElement, tylko przycięta do maxHeight
+  // WIĄZKA (bez haze – tylko główny kształt), docięta do maxWidth / maxHeight
   if (beamShape === "cone") {
     let beamLength = baseH * beamLenFactor * 4;
     beamLength = Math.min(beamLength, maxHeight);
-    const topWidth = baseW * topWidthFactor;
-    const bottomWidth = baseW * bottomWidthFactor;
+
+    let topWidth = baseW * topWidthFactor;
+    let bottomWidth = baseW * bottomWidthFactor;
+
+    const wScale = Math.min(1, maxIconWidth / bottomWidth);
+    topWidth *= wScale;
+    bottomWidth *= wScale;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
     grad.addColorStop(0, hexToRgba(color, sA));
@@ -528,7 +578,9 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   } else if (beamShape === "rect") {
     let beamLength = baseH * beamLenFactor * 4;
     beamLength = Math.min(beamLength, maxHeight);
-    const width = baseW * 1.1;
+    let width = baseW * 1.1;
+    const wScale = Math.min(1, maxIconWidth / width);
+    width *= wScale;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
     grad.addColorStop(0, hexToRgba(color, sA));
@@ -544,8 +596,9 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     }
     ctx.fill();
   } else if (beamShape === "bar") {
-    const barWidth = baseW * 3.0;
-    const barHeight = Math.min(baseH * 0.9, maxHeight * 0.6);
+    // cienka belka w środku – maxIconWidth szerokości
+    const barWidth = Math.min(baseW * 3.0, maxIconWidth);
+    const barHeight = Math.min(baseH * 0.9, maxHeight * 0.5);
 
     const grad = ctx.createLinearGradient(0, -barHeight / 2, 0, barHeight / 2);
     grad.addColorStop(0, hexToRgba(color, 0.9 * intensity));
@@ -560,9 +613,14 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
   } else if (beamShape === "fresnel" || beamShape === "par") {
     const radiusBase = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
-    const radius = Math.min(radiusBase, maxHeight * 0.6);
-    const radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
-    const radiusY = radius;
+    let radius = Math.min(radiusBase, maxHeight * 0.6);
+    let radiusX = radius * (beamShape === "fresnel" ? 1.4 : 1.2);
+    let radiusY = radius;
+
+    const wScale = Math.min(1, maxIconWidth / (radiusX * 2));
+    radiusX *= wScale;
+    radiusY *= wScale;
+    radius *= wScale;
 
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     const alphaCenter = beamShape === "fresnel" ? 0.8 : 0.9;
@@ -578,7 +636,10 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
     ctx.restore();
   } else if (beamShape === "strobe") {
-    const radius = Math.min(baseH, maxHeight * 0.6);
+    const radiusBase = baseH;
+    let radius = Math.min(radiusBase, maxHeight * 0.6);
+    radius = Math.min(radius, maxIconWidth / 2);
+
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     grad.addColorStop(0, hexToRgba("#ffffff", 1));
     grad.addColorStop(0.4, hexToRgba(color, 0.9));
@@ -590,9 +651,9 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
   }
 
-  // FIXTURE – mały klocek nad wiązką (jak na scenie)
+  // FIXTURE – mały klocek nad wiązką
   const fixtureH = baseH * 0.7;
-  const fixtureW = baseW;
+  const fixtureW = Math.min(baseW, maxIconWidth * 0.8);
   ctx.fillStyle = color;
   if (ctx.roundRect) {
     ctx.roundRect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH, 3);
