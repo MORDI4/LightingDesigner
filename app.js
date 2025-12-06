@@ -1,6 +1,7 @@
 // Lighting Designer 2D - PWA, vanilla JS
 // PRO: realistyczne typy świateł + haze + blending, BEZ tilt/dodatków w profile/bar
 // + przycisk "Powiel" w panelu wybranego światła
+// + legenda typów świateł na dole sceny (ikona + nazwa), widoczna też w eksporcie
 
 // ===== Konfiguracja świateł =====
 
@@ -232,6 +233,7 @@ function renderScene() {
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
 
+  // tło
   const gradBg = ctx.createLinearGradient(0, 0, 0, h);
   gradBg.addColorStop(0, "#020617");
   gradBg.addColorStop(0.4, "#020617");
@@ -246,6 +248,7 @@ function renderScene() {
   const stageY = h * 0.15;
   const stageMargin = w * 0.1;
 
+  // scena + siatka
   ctx.save();
   ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
   ctx.lineWidth = 1;
@@ -275,12 +278,250 @@ function renderScene() {
 
   ctx.restore();
 
+  // wszystkie światła
   for (const el of project.elements) {
     drawElement(el, w, h);
   }
+
+  // legenda typów świateł na dole sceny
+  drawLegend(project, w, h);
 }
 
-// ===== Rysowanie pojedynczego światła =====
+// ===== Legenda typów świateł =====
+
+function drawLegend(project, w, h) {
+  if (!project || !project.elements || project.elements.length === 0) return;
+
+  // unikalne typy na scenie
+  const typeIds = Array.from(
+    new Set(project.elements.map(el => el.typeId).filter(Boolean))
+  );
+
+  if (!typeIds.length) return;
+
+  const marginX = 16;
+  const marginY = 6;
+  const legendHeight = 32; // wysokość paska legendy
+  const baseY = h - marginY - legendHeight / 2; // środek legendy
+
+  const availableWidth = w - marginX * 2;
+  const step = Math.min(120, availableWidth / typeIds.length);
+
+  ctx.save();
+  ctx.font = "10px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+
+  typeIds.forEach((typeId, index) => {
+    const type = ELEMENT_TYPES.find(t => t.id === typeId);
+    if (!type) return;
+
+    const x = marginX + index * step;
+    const pillWidth = 70;
+    const pillHeight = legendHeight - 4;
+    const pillX = x - 4;
+    const pillY = baseY - pillHeight / 2;
+
+    // tło "pill" pod ikoną i tekstem
+    ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 10);
+    } else {
+      ctx.rect(pillX, pillY, pillWidth, pillHeight);
+    }
+    ctx.fill();
+
+    // ikona
+    const iconCenterX = x + 10;
+    const iconCenterY = baseY;
+    drawLegendIcon(type, iconCenterX, iconCenterY);
+
+    // podpis
+    ctx.fillStyle = "#e5e7eb";
+    ctx.fillText(type.name, x + 18, baseY + 0.5);
+  });
+
+  ctx.restore();
+}
+
+function drawLegendIcon(type, cx, cy) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const color = type.color;
+  const id = type.id;
+  const scale = 0.4;
+  const baseW = type.width * scale;
+  const baseH = type.height * scale;
+
+  ctx.lineWidth = 1;
+
+  switch (id) {
+    case "beam": {
+      // wąski stożek + mały klocek
+      const beamLength = baseH * 2.0;
+      const topWidth = baseW * 0.3;
+      const bottomWidth = baseW * 0.9;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-topWidth / 2, 0);
+      ctx.lineTo(topWidth / 2, 0);
+      ctx.lineTo(bottomWidth / 2, beamLength);
+      ctx.lineTo(-bottomWidth / 2, beamLength);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#0f172a";
+      if (ctx.roundRect) {
+        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+      } else {
+        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
+      break;
+    }
+    case "wash": {
+      const beamLength = baseH * 2.0;
+      const topWidth = baseW * 0.9;
+      const bottomWidth = baseW * 1.8;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-topWidth / 2, 0);
+      ctx.lineTo(topWidth / 2, 0);
+      ctx.lineTo(bottomWidth / 2, beamLength);
+      ctx.lineTo(-bottomWidth / 2, beamLength);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#0f172a";
+      if (ctx.roundRect) {
+        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+      } else {
+        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
+      break;
+    }
+    case "spot": {
+      const beamLength = baseH * 1.8;
+      const topWidth = baseW * 0.6;
+      const bottomWidth = baseW * 1.4;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-topWidth / 2, 0);
+      ctx.lineTo(topWidth / 2, 0);
+      ctx.lineTo(bottomWidth / 2, beamLength);
+      ctx.lineTo(-bottomWidth / 2, beamLength);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#0f172a";
+      if (ctx.roundRect) {
+        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+      } else {
+        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
+      break;
+    }
+    case "bar": {
+      // pozioma belka
+      const barWidth = baseW * 2.4;
+      const barHeight = baseH * 0.5;
+      ctx.fillStyle = color;
+      if (ctx.roundRect) {
+        ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
+      } else {
+        ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
+      }
+      ctx.fill();
+      break;
+    }
+    case "profile": {
+      // prostokątna plama + klocek
+      const beamLength = baseH * 1.8;
+      const width = baseW * 1.1;
+      ctx.fillStyle = color;
+      if (ctx.roundRect) {
+        ctx.roundRect(-width / 2, 0, width, beamLength, 3);
+      } else {
+        ctx.rect(-width / 2, 0, width, beamLength);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = "#0f172a";
+      if (ctx.roundRect) {
+        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+      } else {
+        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
+      break;
+    }
+    case "fresnel":
+    case "par": {
+      // owalna plama
+      const radius = baseH * (id === "fresnel" ? 1.3 : 1.0);
+      const radiusX = radius * (id === "fresnel" ? 1.4 : 1.2);
+      const radiusY = radius;
+
+      ctx.save();
+      ctx.translate(0, baseH * 0.4);
+      ctx.scale(radiusX / radius, radiusY / radius);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = "#0f172a";
+      if (ctx.roundRect) {
+        ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6, 3);
+      } else {
+        ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH * 0.6);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillRect(-baseW / 2 + 2, -baseH / 2 + 2, baseW - 4, baseH * 0.6 - 4);
+      break;
+    }
+    case "strobe": {
+      const radius = baseH * 1.0;
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.5, color);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    default: {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, baseH * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+  }
+
+  ctx.restore();
+}
+
+// ===== Rysowanie pojedynczego światła (pełne) =====
 
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
@@ -380,7 +621,7 @@ function drawElement(el, w, h) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // BEAMS & HAZE
+  // BEAMS & HAZE (additive)
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
@@ -427,7 +668,11 @@ function drawElement(el, w, h) {
 
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.roundRect(-width / 2, 0, width, beamLength, 4);
+    if (ctx.roundRect) {
+      ctx.roundRect(-width / 2, 0, width, beamLength, 4);
+    } else {
+      ctx.rect(-width / 2, 0, width, beamLength);
+    }
     ctx.fill();
 
   } else if (beamShape === "bar") {
@@ -441,7 +686,11 @@ function drawElement(el, w, h) {
 
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.roundRect(-barWidth / 2, 0, barWidth, barHeight * 5, 6);
+    if (ctx.roundRect) {
+      ctx.roundRect(-barWidth / 2, 0, barWidth, barHeight * 5, 6);
+    } else {
+      ctx.rect(-barWidth / 2, 0, barWidth, barHeight * 5);
+    }
     ctx.fill();
 
   } else if (beamShape === "fresnel" || beamShape === "par") {
@@ -488,17 +737,24 @@ function drawElement(el, w, h) {
     beamGrad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = beamGrad;
     ctx.beginPath();
-    ctx.roundRect(-baseW * 0.35, 0, baseW * 0.7, beamLength, 6);
+    if (ctx.roundRect) {
+      ctx.roundRect(-baseW * 0.35, 0, baseW * 0.7, beamLength, 6);
+    } else {
+      ctx.rect(-baseW * 0.35, 0, baseW * 0.7, beamLength);
+    }
     ctx.fill();
   }
 
   ctx.restore(); // beams + haze
 
   // FIXTURE & GLOW
-
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
+  if (ctx.roundRect) {
+    ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
+  } else {
+    ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH);
+  }
   ctx.fill();
 
   const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
