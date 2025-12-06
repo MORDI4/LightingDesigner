@@ -6,8 +6,10 @@
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
+  overflow: hidden; /* brak przewijania całej strony */
 }
 
 body {
@@ -15,11 +17,10 @@ body {
     "Segoe UI", sans-serif;
   background: #05060a;
   color: #f5f5f5;
-  /* iOS: zapobiega dziwnym skokom/przewijaniu podczas dragowania na scenie */
-  overscroll-behavior: none;
+  overscroll-behavior: none; /* iOS – brak pull-to-refresh / bounce */
 }
 
-/* Layout */
+/* Layout główny */
 
 #app {
   display: flex;
@@ -27,33 +28,47 @@ body {
   height: 100vh;
 }
 
+/* Topbar – uwzględnia wyspę / notch */
+
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  /* iPhone (Dynamic Island): dodatkowa przestrzeń u góry */
-  padding-top: calc(12px + env(safe-area-inset-top));
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px 12px;
   background: #101118;
   border-bottom: 1px solid #252637;
-  gap: 12px;
+  gap: 8px;
 }
 
-.topbar h1 {
-  font-size: 1.1rem;
-  margin-bottom: 4px;
+.topbar-left h1 {
+  font-size: 1rem;
+  margin-bottom: 2px;
 }
 
 .subtitle {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #9ca3af;
 }
 
 .topbar-right {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
+
+.top-select {
+  max-width: 150px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+/* Layout środka */
 
 .layout {
   flex: 1;
@@ -61,129 +76,38 @@ body {
   min-height: 0;
 }
 
-/* Sidebar */
+/* Sidebar – będzie scrollować się wewnętrznie, ale nie cała strona */
 
 .sidebar {
-  width: 300px;
-  padding: 12px;
+  width: 260px;
+  padding: 8px;
   background: #050816;
   border-right: 1px solid #1f2937;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   overflow-y: auto;
 }
 
 .sidebar section {
   background: #0b0f1a;
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid #111827;
 }
 
 .sidebar h2 {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   margin-bottom: 4px;
 }
 
-.helper-text {
-  font-size: 0.7rem;
+.helper {
+  font-size: 0.75rem;
   color: #9093b5;
-}
-
-.projects-header {
-  display: flex;
-  justify-content: flex-start;
   margin-bottom: 6px;
 }
 
-.projects-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.project-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  background: #020617;
-  border: 1px solid #111827;
-  cursor: pointer;
-}
-
-.project-item.active {
-  border-color: #3b82f6;
-  background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(76,81,191,0.1));
-}
-
-.project-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.project-name {
-  font-weight: 500;
-}
-
-.project-date {
-  font-size: 0.7rem;
-  color: #a1a1aa;
-}
-
-.project-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* Palette */
-
-.palette {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.palette-item {
-  flex: 1 1 45%;
-  min-width: 90px;
-  padding: 6px;
-  border-radius: 8px;
-  background: #020617;
-  border: 1px solid #111827;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
-}
-
-.palette-item:hover {
-  background: #0b1120;
-  border-color: #2563eb;
-  transform: translateY(-1px);
-}
-
-.palette-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  box-shadow: 0 0 6px rgba(0,0,0,0.6);
-}
-
-.palette-label {
-  font-size: 0.8rem;
-}
-
-/* Form fields / properties */
+/* Formularze */
 
 .field-group {
   margin-bottom: 8px;
@@ -195,7 +119,8 @@ body {
   margin-bottom: 2px;
 }
 
-.field-group input[type="number"] {
+.field-group input[type="number"],
+.field-group select {
   width: 100%;
   padding: 4px 6px;
   font-size: 0.8rem;
@@ -205,6 +130,8 @@ body {
   color: #e5e7eb;
 }
 
+/* Properties */
+
 .properties {
   font-size: 0.8rem;
   display: flex;
@@ -212,11 +139,11 @@ body {
   gap: 6px;
 }
 
-.properties label {
-  font-size: 0.75rem;
+.hidden {
+  display: none;
 }
 
-/* Canvas area */
+/* Canvas */
 
 .canvas-wrapper {
   flex: 1;
@@ -225,16 +152,15 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: stretch;
-  /* iOS: bezpieczny margines na dół (home indicator) */
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom); /* home indicator */
+  min-height: 0;
 }
 
 #stageCanvas {
   width: 100%;
   height: 100%;
   display: block;
-  /* Kluczowe dla iOS – gesty idą do canvasu, a nie przewijania strony */
-  touch-action: none;
+  touch-action: none;       /* kluczowe dla iOS – gesty do canvasu */
   -ms-touch-action: none;
 }
 
@@ -243,7 +169,7 @@ body {
 .btn {
   border: none;
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   background: #25273a;
   color: #f5f5f5;
   font-size: 0.8rem;
@@ -257,7 +183,7 @@ body {
 }
 
 .btn.small {
-  padding: 4px 10px;
+  padding: 4px 8px;
   font-size: 0.75rem;
 }
 
@@ -271,6 +197,10 @@ body {
   box-shadow: 0 0 8px rgba(220, 38, 38, 0.5);
 }
 
+.btn.full-width {
+  width: 100%;
+}
+
 .btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.4);
@@ -281,14 +211,9 @@ body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.6);
 }
 
-/* Responsywność */
+/* Responsywność – na małym ekranie sidebar na dole / u góry */
 
 @media (max-width: 900px) {
-  #app {
-    height: auto;
-    min-height: 100vh;
-  }
-
   .layout {
     flex-direction: column;
   }
@@ -297,11 +222,16 @@ body {
     width: 100%;
     flex-direction: row;
     flex-wrap: wrap;
+    max-height: 40vh;
   }
 
   .sidebar section {
     flex: 1 1 45%;
     min-width: 160px;
+  }
+
+  .canvas-wrapper {
+    flex: 1;
   }
 
   .topbar {
