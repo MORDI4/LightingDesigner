@@ -430,7 +430,7 @@ function drawLegend(project, w, h) {
       if (isBar) {
         // === LED BAR: czysta, jednolita miniaturka ===
 
-        const barHeight = legendHeight * 0.45;      // podobna skala wysokości do innych ikon
+        const barHeight = legendHeight * 0.1;      // podobna skala wysokości do innych ikon
         const barWidth  = legendHeight * 1.1;       // proporcja zbliżona do miniatur reszty
         const barX      = pillX + 8;
         const barY      = rowCenterY - barHeight / 2;
