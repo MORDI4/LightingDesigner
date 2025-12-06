@@ -427,43 +427,24 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      if (isBar) {
-        // DEBUG: narysuj czerwone kółko w środku pigułki
-        ctx.fillStyle = "#ff0000";
-        ctx.beginPath();
-        ctx.arc(centerX, rowCenterY, 4, 0, Math.PI * 2);
-        ctx.fill();
+            if (isBar) {
+        // === LED BAR: BRUTALNIE PROSTY, DUŻY PROSTOKĄT W PIGUŁCE ===
+        const barHeight = legendHeight * 0.6;          // gruby pasek
+        const barWidth  = pillWidth * 0.45;            // ~połowa pigułki
+        const barX      = pillX + 8;                   // trochę od lewej
+        const barY      = rowCenterY - barHeight / 2;  // centrowanie w pionie
 
-        // === LED BAR: bardzo wyraźna, gruba belka obok napisu ===
-        const barHeight = legendHeight * 0.65;    // GRUBO
-        const barMarginLeft = 10;
-        const barMarginRight = 8;
-        const maxBarWidth = 30;                  // trochę krótszy niż na scenie
-
-        const maxWidthForBar =
-          pillWidth - barMarginLeft - barMarginRight - labelWidth - 10;
-
-        const barWidth = Math.max(
-          16,
-          Math.min(maxBarWidth, maxWidthForBar)
-        );
-
-        const barX = pillX + barMarginLeft;
-        const barY = rowCenterY - barHeight / 2;
-
-        // wypełnienie
+        // zielony prostokąt
         ctx.fillStyle = type.color;
-        if (ctx.roundRect) {
-          ctx.roundRect(barX, barY, barWidth, barHeight, 5);
-        } else {
-          ctx.fillRect(barX, barY, barWidth, barHeight);
-        }
+        ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // tekst – na pewno w środku pigułki
-        const idealTextX = barX + barWidth + barMarginRight;
-        const maxTextX = pillX + pillWidth - 6 - labelWidth;
-        const textX = Math.min(idealTextX, maxTextX);
+        // (opcjonalnie) biały obrys, żeby na pewno coś było widać
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
 
+        // tekst – ZAWSZE w środku pigułki
+        const textX = barX + barWidth + 6;
         ctx.fillStyle = "#e5e7eb";
         ctx.fillText(label, textX, rowCenterY + 0.5);
       } else {
