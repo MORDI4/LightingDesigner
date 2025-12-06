@@ -293,7 +293,7 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, 1–2 rzędy) =====
+// ===== Legenda typów świateł (nad sceną, 1–2 rzędy, małe ikonki) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -307,9 +307,9 @@ function drawLegend(project, w, h) {
   // ile ikon w rzędzie
   let maxPerRow;
   if (w <= 430) {
-    maxPerRow = 5;      // bardzo wąskie telefony
+    maxPerRow = 5;          // wąskie telefony
   } else if (w <= 768) {
-    maxPerRow = 6;      // typowy iPhone
+    maxPerRow = 6;          // typowy iPhone
   } else {
     maxPerRow = typeIds.length; // desktop
   }
@@ -349,11 +349,29 @@ function drawLegend(project, w, h) {
       if (!type) continue;
 
       const centerX = marginX + step * (i + 0.5);
+      const label = type.name;
+      const labelWidth = ctx.measureText(label).width;
 
-      // szerokość pigułki zależna od typu (szersze światła = szersza ikonka)
-      let pillWidth = 54;
-      if (["wash", "bar", "fresnel"].includes(typeId)) pillWidth = 66;
-      if (step - 10 < pillWidth) pillWidth = step - 10;
+      const isBar = typeId === "bar";
+
+      // minimalna szerokość pigułki tak, żeby była:
+      //   - ikona po lewej + tekst po prawej (większość)
+      //   - tekst nad ikoną (LED bar)
+      let pillWidth;
+      if (isBar) {
+        pillWidth = labelWidth + 20; // trochę marginesu
+      } else {
+        pillWidth = labelWidth + 22; // 8 na ikonę + przerwa + margines
+      }
+
+      // lekkie poszerzenie dla szerokich ikon
+      if (["wash", "fresnel"].includes(typeId)) {
+        pillWidth += 6;
+      }
+
+      // nie przekraczamy dostępnego kroku
+      pillWidth = Math.min(pillWidth, step - 6);
+      pillWidth = Math.max(pillWidth, 48); // minimalna
 
       const pillHeight = legendHeight;
       const pillX = centerX - pillWidth / 2;
@@ -369,35 +387,31 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      const isBar = typeId === "bar";
-
-      // mini-ikonka – ta sama geometria co na scenie, tylko skalowana
+      // MINI IKONKA
       let iconCenterX, iconCenterY, iconMaxHeight;
 
       if (isBar) {
-        // LED bar: tekst nad ikoną, ikona na środku
+        // LED bar: tekst nad, cienka belka pod spodem
         iconCenterX = centerX;
-        iconCenterY = rowCenterY + 5;
-        iconMaxHeight = legendHeight * 0.45;
+        iconCenterY = rowCenterY + 6;
+        iconMaxHeight = legendHeight * 0.35;
       } else {
-        // reszta: ikona po lewej, tekst po prawej
+        // pozostałe: ikona po lewej, tekst po prawej
         iconCenterX = pillX + 8;
         iconCenterY = rowCenterY - 1;
-        iconMaxHeight = legendHeight * 0.6;
+        iconMaxHeight = legendHeight * 0.5;
       }
 
       drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
-      // podpis typu
+      // TEKST
       ctx.fillStyle = "#e5e7eb";
       if (isBar) {
-        // LED bar – tekst nad ikoną, wycentrowany
         ctx.textAlign = "center";
-        ctx.fillText(type.name, centerX, pillY + 8);
+        ctx.fillText(label, centerX, pillY + 8); // nad belką
         ctx.textAlign = "left";
       } else {
-        // reszta – tekst obok ikonki
-        ctx.fillText(type.name, pillX + 18, rowCenterY + 0.5);
+        ctx.fillText(label, pillX + 18, rowCenterY + 0.5);
       }
     }
   }
@@ -413,8 +427,8 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const color = type.color;
   const id = type.id;
 
-  // mniejsza skala niż wcześniej, żeby na pewno zmieścić się w pigułce
-  const scale = 0.22;
+  // jeszcze mniejsza skala, żeby na pewno nie wchodzić w tekst
+  const scale = 0.18;
   const baseW = type.width * scale;
   const baseH = type.height * scale;
 
@@ -491,9 +505,9 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // WIĄZKA (ten sam kształt i typ gradientu co na scenie, tylko skrócony)
+  // WIĄZKA – ta sama logika co w drawElement, tylko przycięta do maxHeight
   if (beamShape === "cone") {
-    let beamLength = baseH * beamLenFactor * 4; // 4x żeby przypominało scenę
+    let beamLength = baseH * beamLenFactor * 4;
     beamLength = Math.min(beamLength, maxHeight);
     const topWidth = baseW * topWidthFactor;
     const bottomWidth = baseW * bottomWidthFactor;
@@ -530,12 +544,12 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     }
     ctx.fill();
   } else if (beamShape === "bar") {
-    const barWidth = baseW * 3.2;
-    const barHeight = Math.min(baseH * 0.8, maxHeight * 0.6);
+    const barWidth = baseW * 3.0;
+    const barHeight = Math.min(baseH * 0.9, maxHeight * 0.6);
 
-    const grad = ctx.createLinearGradient(0, 0, 0, barHeight);
-    grad.addColorStop(0, hexToRgba(color, 0.85 * intensity));
-    grad.addColorStop(1, hexToRgba(color, 0.2 * intensity));
+    const grad = ctx.createLinearGradient(0, -barHeight / 2, 0, barHeight / 2);
+    grad.addColorStop(0, hexToRgba(color, 0.9 * intensity));
+    grad.addColorStop(1, hexToRgba(color, 0.4 * intensity));
     ctx.fillStyle = grad;
 
     if (ctx.roundRect) {
@@ -557,14 +571,14 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fillStyle = grad;
 
     ctx.save();
-    ctx.translate(0, radius * 0.3);
+    ctx.translate(0, radius * 0.25);
     ctx.scale(radiusX / radius, radiusY / radius);
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   } else if (beamShape === "strobe") {
-    const radius = Math.min(baseH * 1.0, maxHeight * 0.6);
+    const radius = Math.min(baseH, maxHeight * 0.6);
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     grad.addColorStop(0, hexToRgba("#ffffff", 1));
     grad.addColorStop(0.4, hexToRgba(color, 0.9));
@@ -576,7 +590,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
   }
 
-  // FIXTURE (mały klocek) – też 1:1 z logiką sceny
+  // FIXTURE – mały klocek nad wiązką (jak na scenie)
   const fixtureH = baseH * 0.7;
   const fixtureW = baseW;
   ctx.fillStyle = color;
