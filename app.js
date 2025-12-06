@@ -1,4 +1,5 @@
 // Lighting Designer 2D - PWA, vanilla JS
+// Wersja z bardziej realistycznymi typami świateł (różne wiązki)
 
 // ===== Konfiguracja świateł =====
 
@@ -279,6 +280,8 @@ function renderScene() {
   }
 }
 
+// ===== Rysowanie pojedynczego światła – realistyczne typy =====
+
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
   if (!type) return;
@@ -303,28 +306,161 @@ function drawElement(el, w, h) {
 
   const color = el.color || type.color;
 
-  const beamLength = h * 0.3 * el.scale;
-  const beamWidth = baseW * 2;
+  // Parametry wiązki zależne od typu
+  const id = type.id;
+  let beamShape = "cone"; // cone, bar, rect, fresnel, par, strobe
+  let beamLenFactor = 0.3;
+  let topWidthFactor = 1.0;
+  let bottomWidthFactor = 1.6;
+  let startAlpha = 0.9;
+  let midAlpha = 0.4;
+  let endAlpha = 0.0;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
-  grad.addColorStop(0, hexToRgba(color, 0.9));
-  grad.addColorStop(0.4, hexToRgba(color, 0.4));
-  grad.addColorStop(1, hexToRgba(color, 0.0));
+  switch (id) {
+    case "spot":
+      beamShape = "cone";
+      beamLenFactor = 0.4;
+      topWidthFactor = 0.6;
+      bottomWidthFactor = 1.4;
+      startAlpha = 0.95;
+      midAlpha = 0.5;
+      endAlpha = 0.0;
+      break;
+    case "wash":
+      beamShape = "cone";
+      beamLenFactor = 0.5;
+      topWidthFactor = 1.2;
+      bottomWidthFactor = 2.4;
+      startAlpha = 0.75;
+      midAlpha = 0.35;
+      endAlpha = 0.0;
+      break;
+    case "beam":
+      beamShape = "cone";
+      beamLenFactor = 0.65;
+      topWidthFactor = 0.25;
+      bottomWidthFactor = 0.9;
+      startAlpha = 1.0;
+      midAlpha = 0.5;
+      endAlpha = 0.05;
+      break;
+    case "bar":
+      beamShape = "bar";
+      break;
+    case "profile":
+      beamShape = "rect";
+      beamLenFactor = 0.5;
+      startAlpha = 0.9;
+      midAlpha = 0.6;
+      endAlpha = 0.15;
+      break;
+    case "fresnel":
+      beamShape = "fresnel";
+      break;
+    case "par":
+      beamShape = "par";
+      break;
+    case "strobe":
+      beamShape = "strobe";
+      break;
+    default:
+      beamShape = "cone";
+      break;
+  }
 
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(-beamWidth / 2, 0);
-  ctx.lineTo(beamWidth / 2, 0);
-  ctx.lineTo(beamWidth * 0.6, beamLength);
-  ctx.lineTo(-beamWidth * 0.6, beamLength);
-  ctx.closePath();
-  ctx.fill();
+  // Różne typy wiązek
+  if (beamShape === "cone") {
+    const beamLength = h * beamLenFactor * el.scale;
+    const topWidth = baseW * topWidthFactor;
+    const bottomWidth = baseW * bottomWidthFactor;
 
+    const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
+    grad.addColorStop(0,  hexToRgba(color, startAlpha));
+    grad.addColorStop(0.4, hexToRgba(color, midAlpha));
+    grad.addColorStop(1,  hexToRgba(color, endAlpha));
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-topWidth / 2, 0);
+    ctx.lineTo(topWidth / 2, 0);
+    ctx.lineTo(bottomWidth / 2, beamLength);
+    ctx.lineTo(-bottomWidth / 2, beamLength);
+    ctx.closePath();
+    ctx.fill();
+  } else if (beamShape === "rect") {
+    // Profil – prostokątna, ostra wiązka
+    const beamLength = h * beamLenFactor * el.scale;
+    const width = baseW * 1.1;
+    const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
+    grad.addColorStop(0, hexToRgba(color, 0.95));
+    grad.addColorStop(0.7, hexToRgba(color, 0.5));
+    grad.addColorStop(1, hexToRgba(color, 0.15));
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(-width / 2, 0, width, beamLength, 4);
+    ctx.fill();
+  } else if (beamShape === "bar") {
+    // LED bar – pozioma ściana światła
+    const barWidth = baseW * 3.2;
+    const barHeight = baseH * 0.4;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, barHeight * 5);
+    grad.addColorStop(0, hexToRgba(color, 0.85));
+    grad.addColorStop(0.4, hexToRgba(color, 0.45));
+    grad.addColorStop(1, hexToRgba(color, 0.0));
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(-barWidth / 2, 0, barWidth, barHeight * 5, 6);
+    ctx.fill();
+  } else if (beamShape === "fresnel" || beamShape === "par") {
+    // Fresnel / PAR – miękka owalna plama światła
+    const radiusBase = beamShape === "fresnel" ? baseH * 2.2 : baseH * 1.6;
+    const radiusX = radiusBase * 1.4;
+    const radiusY = radiusBase;
+
+    const grad = ctx.createRadialGradient(
+      0, 0, 0,
+      0, 0, radiusBase
+    );
+    const alphaCenter = beamShape === "fresnel" ? 0.85 : 0.95;
+    grad.addColorStop(0, hexToRgba(color, alphaCenter));
+    grad.addColorStop(0.6, hexToRgba(color, 0.45));
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+
+    ctx.fillStyle = grad;
+    ctx.save();
+    ctx.translate(0, baseH * 1.2);
+    ctx.scale(radiusX / radiusBase, radiusY / radiusBase);
+    ctx.beginPath();
+    ctx.arc(0, 0, radiusBase, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (beamShape === "strobe") {
+    // Strobe – krótki błysk / halo
+    const radius = baseH * 1.6;
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    grad.addColorStop(0, hexToRgba("#ffffff", 1.0));
+    grad.addColorStop(0.5, hexToRgba(color, 0.8));
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+
+    ctx.fillStyle = grad;
+    ctx.save();
+    ctx.translate(0, baseH * 0.8);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Obudowa fixture'a – ten sam prostokąt dla wszystkich
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
   ctx.fill();
 
+  // Delikatna poświata pod fixture'em (wspólna)
   const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
   glowGrad.addColorStop(0, hexToRgba(color, 0.75));
   glowGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -335,6 +471,7 @@ function drawElement(el, w, h) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
+  // Zaznaczenie
   if (el.id === selectedElementId) {
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 2;
@@ -487,7 +624,7 @@ function endPointerDrag(e) {
 canvas.addEventListener("pointerup", endPointerDrag);
 canvas.addEventListener("pointercancel", endPointerDrag);
 
-// ===== Panel właściwości – stałe miejsce, bez „Brak zaznaczonego elementu” =====
+// ===== Panel właściwości – stałe miejsce =====
 
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
@@ -502,7 +639,6 @@ function updatePropertiesPanel() {
     : null;
 
   if (!el) {
-    // brak zaznaczenia – panel zostaje, ale jest „pusty/wyłączony”
     if (propTypeEl) propTypeEl.textContent = "–";
     if (propScaleEl) {
       propScaleEl.value = 1;
