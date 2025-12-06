@@ -342,7 +342,7 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, LED bar gruby i obok napisu) =====
+// ===== Legenda typów świateł (nad sceną, LED bar gruby i na pewno widoczny) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -355,7 +355,7 @@ function drawLegend(project, w, h) {
   const marginY = 6;
   const legendHeight = 30;
 
-  // ile ikon w rzędzie
+  // ile ikon w jednym rzędzie
   let maxPerRow;
   if (w <= 430) {
     maxPerRow = 5;
@@ -407,11 +407,11 @@ function drawLegend(project, w, h) {
       // szerokość pigułki: ikona + odstęp + tekst + marginesy
       let pillWidth;
       if (isBar) {
-        pillWidth = Math.max(76, labelWidth + 44);
+        pillWidth = Math.max(86, labelWidth + 54);
       } else {
         pillWidth = Math.max(60, labelWidth + 26);
       }
-      pillWidth = Math.min(pillWidth, step - 6);
+      pillWidth = Math.min(pillWidth, step - 4);
 
       const pillHeight = legendHeight;
       const pillX = centerX - pillWidth / 2;
@@ -428,42 +428,44 @@ function drawLegend(project, w, h) {
       ctx.fill();
 
       if (isBar) {
-        // === LED BAR: GRUBA BELKA OBOK NAPISU ===
+        // === LED BAR: bardzo wyraźna, gruba belka obok napisu ===
+        const barHeight = legendHeight * 0.25;    // GRUBO
         const barMarginLeft = 10;
         const barMarginRight = 8;
-        const barHeight = legendHeight * 0.6; // gruby, wyraźny
-        const maxBarWidth = 28;
+        const maxBarWidth = 30;                  // trochę krótszy niż na scenie
 
-        // rezerwujemy miejsce na tekst
         const maxWidthForBar =
-          pillWidth - barMarginLeft - barMarginRight - labelWidth - 8;
+          pillWidth - barMarginLeft - barMarginRight - labelWidth - 10;
+
         const barWidth = Math.max(
-          14,
+          16,
           Math.min(maxBarWidth, maxWidthForBar)
         );
 
         const barX = pillX + barMarginLeft;
         const barY = rowCenterY - barHeight / 2;
 
+        // wypełnienie
         ctx.fillStyle = type.color;
         if (ctx.roundRect) {
-          ctx.roundRect(barX, barY, barWidth, barHeight, 4);
+          ctx.roundRect(barX, barY, barWidth, barHeight, 5);
         } else {
           ctx.fillRect(barX, barY, barWidth, barHeight);
         }
 
-        // tekst – zawsze w pigułce
-        const textX = barX + barWidth + barMarginRight;
-        const textMaxX = pillX + pillWidth - 8;
-        const clampedTextX = Math.min(textX, textMaxX - labelWidth);
+        // tekst – na pewno w środku pigułki
+        const idealTextX = barX + barWidth + barMarginRight;
+        const maxTextX = pillX + pillWidth - 6 - labelWidth;
+        const textX = Math.min(idealTextX, maxTextX);
 
         ctx.fillStyle = "#e5e7eb";
-        ctx.fillText(label, clampedTextX, rowCenterY + 0.5);
+        ctx.fillText(label, textX, rowCenterY + 0.5);
       } else {
-        // === POZOSTAŁE TYPY: ikona + tekst ===
+        // === pozostałe typy ===
         const iconCenterX = pillX + 9;
         const iconCenterY = rowCenterY - 1;
         const iconMaxHeight = legendHeight * 0.55;
+
         drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
         ctx.fillStyle = "#e5e7eb";
@@ -474,6 +476,7 @@ function drawLegend(project, w, h) {
 
   ctx.restore();
 }
+
 
 
 // miniatury – ta sama geometria co na scenie, ale mocno pomniejszona
