@@ -342,11 +342,13 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, 1–2 rzędy, małe ikonki) =====
+// ===== Legenda typów świateł (nad sceną, 1–2 rzędy, LED bar obok napisu) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
-  const typeIds = Array.from(new Set(project.elements.map(el => el.typeId).filter(Boolean)));
+  const typeIds = Array.from(
+    new Set(project.elements.map(el => el.typeId).filter(Boolean))
+  );
   if (!typeIds.length) return;
 
   const marginX = 12;
@@ -356,11 +358,11 @@ function drawLegend(project, w, h) {
   // ile ikon w rzędzie
   let maxPerRow;
   if (w <= 430) {
-    maxPerRow = 5;          // wąskie telefony
+    maxPerRow = 5;
   } else if (w <= 768) {
-    maxPerRow = 6;          // typowy iPhone
+    maxPerRow = 6;
   } else {
-    maxPerRow = typeIds.length; // desktop
+    maxPerRow = typeIds.length;
   }
 
   const totalRows = Math.min(2, Math.ceil(typeIds.length / maxPerRow));
@@ -401,20 +403,9 @@ function drawLegend(project, w, h) {
       const label = type.name;
       const labelWidth = ctx.measureText(label).width;
 
-      const isBar = typeId === "bar";
-
-      // szerokość pigułki = wynik z tekstu + małe marginesy
-      let pillWidth;
-      if (isBar) {
-        // tekst nad ikonką
-        pillWidth = labelWidth + 20;
-      } else {
-        // ikona po lewej, tekst po prawej
-        pillWidth = labelWidth + 22; // ~8px ikony + odstęp + margines
-      }
-
-      // minimalna / maksymalna szerokość
-      pillWidth = Math.max(pillWidth, 52);
+      // pigułka zawsze liczy: ikonka + odstęp + tekst + margines
+      let pillWidth = labelWidth + 26;
+      pillWidth = Math.max(52, pillWidth);
       pillWidth = Math.min(pillWidth, step - 6);
 
       const pillHeight = legendHeight;
@@ -431,32 +422,15 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-      // MINI IKONA
-      let iconCenterX, iconCenterY, iconMaxHeight;
-
-      if (isBar) {
-        // LED bar: tekst nad, cienka belka na środku
-        iconCenterX = centerX;
-        iconCenterY = rowCenterY + 6;
-        iconMaxHeight = legendHeight * 0.32;
-      } else {
-        // reszta: ikona po lewej
-        iconCenterX = pillX + 9;
-        iconCenterY = rowCenterY - 1;
-        iconMaxHeight = legendHeight * 0.5;
-      }
-
+      // ikona (w tym LED bar) – zawsze po lewej
+      const iconCenterX = pillX + 9;
+      const iconCenterY = rowCenterY - 1;
+      const iconMaxHeight = legendHeight * 0.55;
       drawLegendIcon(type, iconCenterX, iconCenterY, iconMaxHeight);
 
-      // TEKST
+      // tekst – po prawej
       ctx.fillStyle = "#e5e7eb";
-      if (isBar) {
-        ctx.textAlign = "center";
-        ctx.fillText(label, centerX, pillY + 8); // nad belką
-        ctx.textAlign = "left";
-      } else {
-        ctx.fillText(label, pillX + 18, rowCenterY + 0.5);
-      }
+      ctx.fillText(label, pillX + 20, rowCenterY + 0.5);
     }
   }
 
@@ -479,9 +453,9 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
 
   // ===== LED BAR – specjalny przypadek: cienka, ewidentna belka =====
   if (id === "bar") {
-    // LED bar w legendzie – wyraźna, "normalna" belka
-    const barWidth = Math.min(28, maxIconWidth * 2.2);
-    const barHeight = 7; // było 5
+    // LED bar w legendzie – grubsza, krótka belka obok napisu
+    const barWidth = Math.min(24, maxIconWidth * 2.0); // trochę krótsza niż scena
+    const barHeight = 8;                               // wyraźna grubość
 
     ctx.fillStyle = color;
     if (ctx.roundRect) {
@@ -493,6 +467,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.restore();
     return;
   }
+
 
 
   // ===== parametry wiązki 1:1 z drawElement (tylko skrócone) =====
@@ -841,7 +816,7 @@ function drawElement(el, w, h) {
 } else if (beamShape === "bar") {
   // „normalny” bar – wyraźna, ale nie przesadzona grubość
   const barWidth = baseW * 3.2;
-  const barHeight = baseH * 1.0; // było 0.4
+  const barHeight = baseH * 1.8; // było 0.4
 
   const grad = ctx.createLinearGradient(0, -barHeight / 2, 0, barHeight * 2);
   grad.addColorStop(0, hexToRgba(color, 0.9 * intensity));
@@ -883,9 +858,9 @@ function drawElement(el, w, h) {
       fh - 6
     );
 } else if (id === "bar") {
-  // LED bar – wyraźniejsza belka
-  const fw = baseW * 1.8;
-  const fh = baseH * 0.7; // było 0.4
+  // LED bar – jeszcze wyraźniejsza belka frontu
+  const fw = baseW * 2.0;
+  const fh = baseH * 0.9;
   ctx.fillStyle = "#020617";
   if (ctx.roundRect) {
     ctx.roundRect(-fw / 2, lensY - fh / 2, fw, fh, 4);
