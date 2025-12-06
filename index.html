@@ -52,13 +52,16 @@
                 <label>Typ</label>
                 <div id="propType" class="prop-readonly">–</div>
               </div>
-              <div class="field-group">
-                <label for="propScale">Skala</label>
-                <input type="range" id="propScale" min="0.5" max="2" step="0.05" />
+                <!-- najpierw KOLOR -->
+              <div class="prop-row">
+                <label class="prop-label" for="propColor">Kolor</label>
+                <input type="color" id="propColor">
               </div>
-              <div class="field-group">
-                <label for="propColor">Kolor</label>
-                <input type="color" id="propColor" />
+
+              <!-- potem SKALA -->
+              <div class="prop-row prop-row-wide">
+                <label class="prop-label" for="propScale">Skala</label>
+                <input type="range" id="propScale" min="0.4" max="2" step="0.01">
               </div>
             </div>
             <div class="properties-actions">
