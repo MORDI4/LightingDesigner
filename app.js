@@ -427,24 +427,24 @@ function drawLegend(project, w, h) {
       }
       ctx.fill();
 
-            if (isBar) {
-        // === LED BAR: BRUTALNIE PROSTY, DUŻY PROSTOKĄT W PIGUŁCE ===
-        const barHeight = legendHeight * 0.6;          // gruby pasek
-        const barWidth  = pillWidth * 0.45;            // ~połowa pigułki
-        const barX      = pillX + 8;                   // trochę od lewej
-        const barY      = rowCenterY - barHeight / 2;  // centrowanie w pionie
+      if (isBar) {
+        // === LED BAR: czysta, jednolita miniaturka ===
 
-        // zielony prostokąt
+        const barHeight = legendHeight * 0.45;      // podobna skala wysokości do innych ikon
+        const barWidth  = legendHeight * 1.1;       // proporcja zbliżona do miniatur reszty
+        const barX      = pillX + 8;
+        const barY      = rowCenterY - barHeight / 2;
+
+        // zielony prostokąt LED bara
         ctx.fillStyle = type.color;
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // (opcjonalnie) biały obrys, żeby na pewno coś było widać
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        // tekst: bez wychodzenia poza pigułkę
+        const textX = Math.min(
+          barX + barWidth + 6,
+          pillX + pillWidth - ctx.measureText(label).width - 6
+        );
 
-        // tekst – ZAWSZE w środku pigułki
-        const textX = barX + barWidth + 6;
         ctx.fillStyle = "#e5e7eb";
         ctx.fillText(label, textX, rowCenterY + 0.5);
       } else {
