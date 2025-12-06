@@ -429,7 +429,7 @@ function drawLegend(project, w, h) {
 
       if (isBar) {
         // === LED BAR: bardzo wyraźna, gruba belka obok napisu ===
-        const barHeight = legendHeight * 0.25;    // GRUBO
+        const barHeight = legendHeight * 0.65;    // GRUBO
         const barMarginLeft = 10;
         const barMarginRight = 8;
         const maxBarWidth = 30;                  // trochę krótszy niż na scenie
