@@ -1,5 +1,5 @@
 // Lighting Designer 2D - PWA, vanilla JS
-// PRO: bardziej realistyczne wizualizacje świateł (różne wiązki + haze + GOBO + blending)
+// PRO: realistyczne typy świateł (różne wiązki + haze + blending), BEZ tilt i dodatków w profile/bar
 
 // ===== Konfiguracja świateł =====
 
@@ -279,7 +279,7 @@ function renderScene() {
   }
 }
 
-// ===== Rysowanie pojedynczego światła – PRO =====
+// ===== Rysowanie pojedynczego światła =====
 
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
@@ -306,7 +306,7 @@ function drawElement(el, w, h) {
   const color = el.color || type.color;
   const id = type.id;
 
-  // Domyślne parametry wiązki
+  // Parametry wiązki
   let beamShape = "cone"; // cone, rect, bar, fresnel, par, strobe
   let beamLenFactor = 0.3;
   let topWidthFactor = 1.0;
@@ -314,8 +314,7 @@ function drawElement(el, w, h) {
   let startAlpha = 0.9;
   let midAlpha = 0.4;
   let endAlpha = 0.0;
-  let tilt = 0;           // w radianach
-  let intensity = 1.0;    // 0..1, wpływa na alfa
+  let intensity = 1.0;    // 0..1
 
   switch (id) {
     case "spot":
@@ -326,7 +325,6 @@ function drawElement(el, w, h) {
       startAlpha = 0.95;
       midAlpha = 0.5;
       endAlpha = 0.0;
-      tilt = 0.04;
       intensity = 0.9;
       break;
     case "wash":
@@ -337,7 +335,6 @@ function drawElement(el, w, h) {
       startAlpha = 0.75;
       midAlpha = 0.35;
       endAlpha = 0.0;
-      tilt = 0.02;
       intensity = 0.8;
       break;
     case "beam":
@@ -348,12 +345,10 @@ function drawElement(el, w, h) {
       startAlpha = 1.0;
       midAlpha = 0.5;
       endAlpha = 0.05;
-      tilt = 0; // może być zero, bo beam zwykle idzie prosto
       intensity = 1.0;
       break;
     case "bar":
       beamShape = "bar";
-      tilt = 0;
       intensity = 0.85;
       break;
     case "profile":
@@ -362,22 +357,18 @@ function drawElement(el, w, h) {
       startAlpha = 0.95;
       midAlpha = 0.6;
       endAlpha = 0.15;
-      tilt = 0.03;
       intensity = 0.9;
       break;
     case "fresnel":
       beamShape = "fresnel";
-      tilt = 0.02;
       intensity = 0.75;
       break;
     case "par":
       beamShape = "par";
-      tilt = 0.02;
       intensity = 0.9;
       break;
     case "strobe":
       beamShape = "strobe";
-      tilt = 0;
       intensity = 1.0;
       break;
     default:
@@ -385,15 +376,9 @@ function drawElement(el, w, h) {
       break;
   }
 
-  // Skalujemy intensywność na alpha
   const sA = startAlpha * intensity;
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
-
-  // Tilting całego fixture'a (symulacja tilt/pan)
-  if (tilt !== 0) {
-    ctx.rotate(tilt);
-  }
 
   // --- BEAMS & HAZE (additive blend) ---
   ctx.save();
@@ -418,7 +403,6 @@ function drawElement(el, w, h) {
     ctx.closePath();
     ctx.fill();
 
-    // haze / smoke w wiązce
     const hazeRadius = beamLength * 0.6;
     const hazeCenterY = beamLength * 0.45;
     const hazeGrad = ctx.createRadialGradient(
@@ -433,7 +417,7 @@ function drawElement(el, w, h) {
     ctx.fill();
 
   } else if (beamShape === "rect") {
-    // Profil – prostokątna wiązka + prosty GOBO
+    // Profil – prosta prostokątna wiązka, bez GOBO
     const beamLength = h * beamLenFactor * el.scale;
     const width = baseW * 1.1;
 
@@ -447,27 +431,8 @@ function drawElement(el, w, h) {
     ctx.roundRect(-width / 2, 0, width, beamLength, 4);
     ctx.fill();
 
-    // GOBO – pattern wycinany z wiązki
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(-width / 2, 0, width, beamLength, 4);
-    ctx.clip();
-
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "rgba(0,0,0,0.7)";
-
-    const stripeH = beamLength / 9;
-    for (let i = 1; i <= 3; i++) {
-      const yStripe = stripeH * (2 * i);
-      ctx.beginPath();
-      ctx.roundRect(-width / 2, yStripe, width, stripeH * 0.5, 3);
-      ctx.fill();
-    }
-
-    ctx.restore();
-
   } else if (beamShape === "bar") {
-    // LED bar – pionowa/pozioma ściana światła
+    // LED bar – ściana światła, bez segmentów
     const barWidth = baseW * 3.2;
     const barHeight = baseH * 0.4;
 
@@ -481,22 +446,7 @@ function drawElement(el, w, h) {
     ctx.roundRect(-barWidth / 2, 0, barWidth, barHeight * 5, 6);
     ctx.fill();
 
-    // segmenty LED
-    const segCount = 5;
-    const segGap = barWidth / (segCount + 1);
-    for (let i = 0; i < segCount; i++) {
-      const xSeg = -barWidth / 2 + segGap * (i + 1);
-      const segGrad = ctx.createLinearGradient(0, 0, 0, barHeight * 3);
-      segGrad.addColorStop(0, hexToRgba("#ffffff", 0.75 * intensity));
-      segGrad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = segGrad;
-      ctx.beginPath();
-      ctx.roundRect(xSeg - 4, 0, 8, barHeight * 3, 4);
-      ctx.fill();
-    }
-
   } else if (beamShape === "fresnel" || beamShape === "par") {
-    // Fresnel / PAR – owalna plama światła + haze
     const radiusBase = beamShape === "fresnel" ? baseH * 2.2 : baseH * 1.6;
     const radiusX = radiusBase * (beamShape === "fresnel" ? 1.5 : 1.3);
     const radiusY = radiusBase;
@@ -520,7 +470,6 @@ function drawElement(el, w, h) {
     ctx.restore();
 
   } else if (beamShape === "strobe") {
-    // Strobe – intensywne halo + krótki słup
     const radius = baseH * 1.8;
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     grad.addColorStop(0, hexToRgba("#ffffff", 1.0));
@@ -545,17 +494,15 @@ function drawElement(el, w, h) {
     ctx.fill();
   }
 
-  ctx.restore(); // koniec beams + haze (lighter)
+  ctx.restore(); // koniec beams + haze
 
-  // --- FIXTURE & GLOW (zwykłe rysowanie) ---
+  // --- FIXTURE & GLOW ---
 
-  // Obudowa fixture'a
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
   ctx.fill();
 
-  // Delikatna poświata pod fixture'em
   const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
   glowGrad.addColorStop(0, hexToRgba(color, 0.75));
   glowGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -566,7 +513,6 @@ function drawElement(el, w, h) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Zaznaczenie
   if (el.id === selectedElementId) {
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 2;
@@ -641,7 +587,7 @@ function hitTestElement(px, py) {
 }
 
 canvas.addEventListener("pointerdown", e => {
-  e.preventDefault(); // ważne na iOS – blokuje scroll
+  e.preventDefault();
 
   const pos = getPointerPos(e);
   const hit = hitTestElement(pos.x, pos.y);
@@ -663,9 +609,7 @@ canvas.addEventListener("pointerdown", e => {
   if (typeof canvas.setPointerCapture === "function" && e.pointerId != null) {
     try {
       canvas.setPointerCapture(e.pointerId);
-    } catch (err) {
-      // ignore
-    }
+    } catch (err) {}
   }
 });
 
@@ -709,9 +653,7 @@ function endPointerDrag(e) {
   if (typeof canvas.releasePointerCapture === "function" && e && e.pointerId != null) {
     try {
       canvas.releasePointerCapture(e.pointerId);
-    } catch (err) {
-      // ignore
-    }
+    } catch (err) {}
   }
   isDragging = false;
 }
@@ -719,7 +661,7 @@ function endPointerDrag(e) {
 canvas.addEventListener("pointerup", endPointerDrag);
 canvas.addEventListener("pointercancel", endPointerDrag);
 
-// ===== Panel właściwości – stałe miejsce =====
+// ===== Panel właściwości =====
 
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
