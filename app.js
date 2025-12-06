@@ -428,6 +428,12 @@ function drawLegend(project, w, h) {
       ctx.fill();
 
       if (isBar) {
+        // DEBUG: narysuj czerwone kółko w środku pigułki
+        ctx.fillStyle = "#ff0000";
+        ctx.beginPath();
+        ctx.arc(centerX, rowCenterY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
         // === LED BAR: bardzo wyraźna, gruba belka obok napisu ===
         const barHeight = legendHeight * 0.65;    // GRUBO
         const barMarginLeft = 10;
