@@ -471,13 +471,29 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const color = type.color;
   const id = type.id;
 
-  const scale = 0.18; // bazowa skala
+  const scale = 0.18;
   const baseW = type.width * scale;
   const baseH = type.height * scale;
 
-  const maxIconWidth = 12; // maksymalna szerokość ikony (żeby nie wchodziła na tekst)
+  const maxIconWidth = 12;
 
-  // konfiguracja wiązki jak w drawElement
+  // ===== LED BAR – specjalny przypadek: cienka, ewidentna belka =====
+  if (id === "bar") {
+    const barWidth = Math.min(22, maxIconWidth * 1.8);
+    const barHeight = 5;
+
+    ctx.fillStyle = color;
+    if (ctx.roundRect) {
+      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 3);
+    } else {
+      ctx.fillRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
+    }
+
+    ctx.restore();
+    return;
+  }
+
+  // ===== parametry wiązki 1:1 z drawElement (tylko skrócone) =====
   let beamShape = "cone";
   let beamLenFactor = 0.3;
   let topWidthFactor = 1.0;
@@ -518,10 +534,6 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
       endAlpha = 0.05;
       intensity = 1.0;
       break;
-    case "bar":
-      beamShape = "bar";
-      intensity = 0.85;
-      break;
     case "profile":
       beamShape = "rect";
       beamLenFactor = 0.55;
@@ -550,17 +562,15 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
-  // WIĄZKA (bez haze – tylko główny kształt), docięta do maxWidth / maxHeight
+  // ===== mini wiązka =====
   if (beamShape === "cone") {
-    let beamLength = baseH * beamLenFactor * 4;
-    beamLength = Math.min(beamLength, maxHeight);
+    let beamLength = Math.min(baseH * beamLenFactor * 4, maxHeight);
+    let topW = baseW * topWidthFactor;
+    let botW = baseW * bottomWidthFactor;
 
-    let topWidth = baseW * topWidthFactor;
-    let bottomWidth = baseW * bottomWidthFactor;
-
-    const wScale = Math.min(1, maxIconWidth / bottomWidth);
-    topWidth *= wScale;
-    bottomWidth *= wScale;
+    const wScale = Math.min(1, maxIconWidth / botW);
+    topW *= wScale;
+    botW *= wScale;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
     grad.addColorStop(0, hexToRgba(color, sA));
@@ -569,15 +579,14 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fillStyle = grad;
 
     ctx.beginPath();
-    ctx.moveTo(-topWidth / 2, 0);
-    ctx.lineTo(topWidth / 2, 0);
-    ctx.lineTo(bottomWidth / 2, beamLength);
-    ctx.lineTo(-bottomWidth / 2, beamLength);
+    ctx.moveTo(-topW / 2, 0);
+    ctx.lineTo(topW / 2, 0);
+    ctx.lineTo(botW / 2, beamLength);
+    ctx.lineTo(-botW / 2, beamLength);
     ctx.closePath();
     ctx.fill();
   } else if (beamShape === "rect") {
-    let beamLength = baseH * beamLenFactor * 4;
-    beamLength = Math.min(beamLength, maxHeight);
+    let beamLength = Math.min(baseH * beamLenFactor * 4, maxHeight);
     let width = baseW * 1.1;
     const wScale = Math.min(1, maxIconWidth / width);
     width *= wScale;
@@ -588,29 +597,11 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     grad.addColorStop(1, hexToRgba(color, eA));
     ctx.fillStyle = grad;
 
-    ctx.beginPath();
     if (ctx.roundRect) {
       ctx.roundRect(-width / 2, 0, width, beamLength, 3);
     } else {
-      ctx.rect(-width / 2, 0, width, beamLength);
+      ctx.fillRect(-width / 2, 0, width, beamLength);
     }
-    ctx.fill();
-  } else if (beamShape === "bar") {
-    // cienka belka w środku – maxIconWidth szerokości
-    const barWidth = Math.min(baseW * 3.0, maxIconWidth);
-    const barHeight = Math.min(baseH * 0.9, maxHeight * 0.5);
-
-    const grad = ctx.createLinearGradient(0, -barHeight / 2, 0, barHeight / 2);
-    grad.addColorStop(0, hexToRgba(color, 0.9 * intensity));
-    grad.addColorStop(1, hexToRgba(color, 0.4 * intensity));
-    ctx.fillStyle = grad;
-
-    if (ctx.roundRect) {
-      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 4);
-    } else {
-      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
-    }
-    ctx.fill();
   } else if (beamShape === "fresnel" || beamShape === "par") {
     const radiusBase = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
     let radius = Math.min(radiusBase, maxHeight * 0.6);
@@ -641,7 +632,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     radius = Math.min(radius, maxIconWidth / 2);
 
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    grad.addColorStop(0, hexToRgba("#ffffff", 1));
+    grad.addColorStop(0, "#ffffff");
     grad.addColorStop(0.4, hexToRgba(color, 0.9));
     grad.addColorStop(1, hexToRgba(color, 0));
     ctx.fillStyle = grad;
@@ -651,22 +642,51 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
   }
 
-  // FIXTURE – mały klocek nad wiązką
-  const fixtureH = baseH * 0.7;
-  const fixtureW = Math.min(baseW, maxIconWidth * 0.8);
-  ctx.fillStyle = color;
-  if (ctx.roundRect) {
-    ctx.roundRect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH, 3);
+  // ===== MINI GŁOWA / SOCZEWKA – spójna z dużą sceną =====
+  const lensY = -baseH * 0.4;
+  const maxLensRadius = Math.min(baseW, baseH) * 0.35;
+
+  if (id === "profile") {
+    const fw = Math.min(baseW * 0.9, maxIconWidth);
+    const fh = baseH * 0.5;
+    ctx.fillStyle = "#020617";
+    if (ctx.roundRect) {
+      ctx.roundRect(-fw / 2, lensY - fh / 2, fw, fh, 3);
+    } else {
+      ctx.fillRect(-fw / 2, lensY - fh / 2, fw, fh);
+    }
+    ctx.fillStyle = color;
+    ctx.fillRect(
+      -fw / 2 + 1.5,
+      lensY - fh / 2 + 1.5,
+      fw - 3,
+      fh - 3
+    );
   } else {
-    ctx.rect(-fixtureW / 2, -fixtureH, fixtureW, fixtureH);
+    const radius = maxLensRadius;
+    ctx.fillStyle = "#020617";
+    ctx.beginPath();
+    ctx.arc(0, lensY, radius * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    const gradLens = ctx.createRadialGradient(
+      0, lensY - radius * 0.3, 0,
+      0, lensY, radius
+    );
+    gradLens.addColorStop(0, "#ffffff");
+    gradLens.addColorStop(0.3, color);
+    gradLens.addColorStop(1, hexToRgba(color, 0.3));
+    ctx.fillStyle = gradLens;
+    ctx.beginPath();
+    ctx.arc(0, lensY, radius, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.fill();
 
   ctx.restore();
 }
 
-// ===== Rysowanie pojedynczego światła (pełny kształt) =====
 
+// ===== Rysowanie pojedynczego światła (pełny kształt) =====
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
   if (!type) return;
@@ -762,6 +782,7 @@ function drawElement(el, w, h) {
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
 
+  // ===== WIĄZKA + HAZE (jak wcześniej) =====
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
@@ -771,9 +792,9 @@ function drawElement(el, w, h) {
     const bottomWidth = baseW * bottomWidthFactor;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
-    grad.addColorStop(0, hexToRgba(color, sA));
+    grad.addColorStop(0,  hexToRgba(color, sA));
     grad.addColorStop(0.4, hexToRgba(color, mA));
-    grad.addColorStop(1, hexToRgba(color, eA));
+    grad.addColorStop(1,  hexToRgba(color, eA));
 
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -838,10 +859,7 @@ function drawElement(el, w, h) {
     const radiusX = radiusBase * (beamShape === "fresnel" ? 1.5 : 1.3);
     const radiusY = radiusBase;
 
-    const grad = ctx.createRadialGradient(
-      0, 0, 0,
-      0, 0, radiusBase
-    );
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusBase);
     const alphaCenter = beamShape === "fresnel" ? 0.8 : 0.9;
     grad.addColorStop(0, hexToRgba(color, alphaCenter * intensity));
     grad.addColorStop(0.6, hexToRgba(color, 0.45 * intensity));
@@ -887,16 +905,69 @@ function drawElement(el, w, h) {
 
   ctx.restore(); // beams + haze
 
-  // FIXTURE & GLOW
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
-  } else {
-    ctx.rect(-baseW / 2, -baseH / 2, baseW, baseH);
-  }
-  ctx.fill();
+  // ===== GŁOWY / SOCZEWKI – REALISTYCZNE KSZTAŁTY =====
+  const lensY = -baseH * 0.25;              // lekko nad początkiem wiązki
+  const maxLensRadius = Math.min(baseW, baseH) * 0.35;
 
+  if (id === "profile") {
+    // profil – prostokątny front
+    const fw = baseW * 0.8;
+    const fh = baseH * 0.45;
+    ctx.fillStyle = "#020617";
+    if (ctx.roundRect) {
+      ctx.roundRect(-fw / 2, lensY - fh / 2, fw, fh, 4);
+    } else {
+      ctx.fillRect(-fw / 2, lensY - fh / 2, fw, fh);
+    }
+    // „okno” światła
+    ctx.fillStyle = color;
+    ctx.fillRect(
+      -fw / 2 + 3,
+      lensY - fh / 2 + 3,
+      fw - 6,
+      fh - 6
+    );
+  } else if (id === "bar") {
+    // LED bar – pozioma belka (front)
+    const fw = baseW * 1.6;
+    const fh = baseH * 0.4;
+    ctx.fillStyle = "#020617";
+    if (ctx.roundRect) {
+      ctx.roundRect(-fw / 2, lensY - fh / 2, fw, fh, 4);
+    } else {
+      ctx.fillRect(-fw / 2, lensY - fh / 2, fw, fh);
+    }
+    ctx.fillStyle = color;
+    ctx.fillRect(
+      -fw / 2 + 2,
+      lensY - fh / 2 + 2,
+      fw - 4,
+      fh - 4
+    );
+  } else {
+    // reszta: okrągła soczewka (spot, beam, wash, fresnel, par, strobe)
+    const radius = maxLensRadius;
+    // ciemna obudowa
+    ctx.fillStyle = "#020617";
+    ctx.beginPath();
+    ctx.arc(0, lensY, radius * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // sama soczewka z lekkim gradientem
+    const grad = ctx.createRadialGradient(
+      0, lensY - radius * 0.3, 0,
+      0, lensY, radius
+    );
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(0.3, color);
+    grad.addColorStop(1, hexToRgba(color, 0.3));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, lensY, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ===== GLOW na scenie (pod fixturem) =====
   const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
   glowGrad.addColorStop(0, hexToRgba(color, 0.75));
   glowGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -907,6 +978,7 @@ function drawElement(el, w, h) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
+  // obrys zaznaczenia
   if (el.id === selectedElementId) {
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 2;
