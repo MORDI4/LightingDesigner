@@ -1281,7 +1281,7 @@ if (propRotationEl) {
     if (!project) return;
     const el = project.elements.find(e => e.id === selectedElementId);
     if (!el) return;
-    el.rotation = parseFloat(propRotationEl.value) || 0;
+    el.rotation = -(parseFloat(propRotationEl.value) || 0);
     if (propRotationValueEl) {
       propRotationValueEl.textContent = `${Math.round(el.rotation)}°`;
     }
