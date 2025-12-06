@@ -1,6 +1,6 @@
 // Lighting Designer 2D - PWA, vanilla JS
 
-// Model danych
+// ===== Konfiguracja świateł =====
 
 const ELEMENT_TYPES = [
   {
@@ -63,15 +63,16 @@ const ELEMENT_TYPES = [
 
 const STORAGE_KEY = "lighting_designer_projects_v1";
 
+// ===== Stan aplikacji =====
+
 let projects = [];
 let currentProjectId = null;
 let selectedElementId = null;
 
-// Canvas / scena
+// ===== Canvas / scena =====
 
 const canvas = document.getElementById("stageCanvas");
 const ctx = canvas.getContext("2d");
-
 let canvasRect = canvas.getBoundingClientRect();
 
 function resizeCanvas() {
@@ -85,14 +86,14 @@ function resizeCanvas() {
   canvas.height = height * dpr;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
   canvasRect = canvas.getBoundingClientRect();
+
   renderScene();
 }
 
 window.addEventListener("resize", resizeCanvas);
 
-// Projekty
+// ===== Projekty: wczytywanie / zapisywanie =====
 
 function loadProjects() {
   try {
@@ -111,7 +112,6 @@ function loadProjects() {
     const defaultProject = {
       id: crypto.randomUUID(),
       name: "Domyślny projekt",
-      createdAt: Date.now(),
       stageWidth: 10,
       stageDepth: 6,
       elements: []
@@ -132,207 +132,90 @@ function saveProjects() {
   } catch (err) {
     console.error("Błąd zapisu projektów", err);
   }
-
-  renderProjectsList();
+  populateProjectSelect();
 }
 
 function getCurrentProject() {
   return projects.find(p => p.id === currentProjectId) || null;
 }
 
-// UI: lista projektów
+// ===== UI: select projektów =====
 
-const projectsListEl = document.getElementById("projectsList");
-
-function formatDate(ts) {
-  const d = new Date(ts);
-  return d.toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function renderProjectsList() {
-  projectsListEl.innerHTML = "";
-  projects
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .forEach(project => {
-      const li = document.createElement("li");
-      li.className = "project-item";
-      if (project.id === currentProjectId) {
-        li.classList.add("active");
-      }
-
-      const meta = document.createElement("div");
-      meta.className = "project-meta";
-
-      const nameEl = document.createElement("div");
-      nameEl.className = "project-name";
-      nameEl.textContent = project.name;
-
-      const dateEl = document.createElement("div");
-      dateEl.className = "project-date";
-      dateEl.textContent = formatDate(project.createdAt);
-
-      meta.appendChild(nameEl);
-      meta.appendChild(dateEl);
-
-      const actions = document.createElement("div");
-      actions.className = "project-actions";
-
-      const selectBtn = document.createElement("button");
-      selectBtn.className = "btn small";
-      selectBtn.textContent = "Otwórz";
-      selectBtn.addEventListener("click", e => {
-        e.stopPropagation();
-        currentProjectId = project.id;
-        selectedElementId = null;
-        updateStageInputs();
-        updatePropertiesPanel();
-        renderProjectsList();
-        renderScene();
-      });
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.className = "btn danger small";
-      deleteBtn.textContent = "Usuń";
-      deleteBtn.addEventListener("click", e => {
-        e.stopPropagation();
-        if (projects.length <= 1) {
-          alert("Musi pozostać przynajmniej jeden projekt.");
-          return;
-        }
-        const ok = confirm(`Na pewno usunąć projekt "${project.name}"?`);
-        if (!ok) return;
-
-        projects = projects.filter(p => p.id !== project.id);
-        if (currentProjectId === project.id) {
-          currentProjectId = projects[0]?.id || null;
-        }
-        saveProjects();
-        updateStageInputs();
-        updatePropertiesPanel();
-        renderScene();
-      });
-
-      actions.appendChild(selectBtn);
-      actions.appendChild(deleteBtn);
-
-      li.appendChild(meta);
-      li.appendChild(actions);
-
-      li.addEventListener("click", () => {
-        currentProjectId = project.id;
-        selectedElementId = null;
-        updateStageInputs();
-        updatePropertiesPanel();
-        renderProjectsList();
-        renderScene();
-      });
-
-      projectsListEl.appendChild(li);
-    });
-}
-
+const projectSelectEl = document.getElementById("projectSelect");
 const newProjectBtn = document.getElementById("newProjectBtn");
+const deleteProjectBtn = document.getElementById("deleteProjectBtn");
 
-newProjectBtn.addEventListener("click", () => {
-  const name = prompt("Nazwa nowego projektu:");
-  if (!name) return;
-
-  const project = {
-    id: crypto.randomUUID(),
-    name,
-    createdAt: Date.now(),
-    stageWidth: 10,
-    stageDepth: 6,
-    elements: []
-  };
-  projects.push(project);
-  currentProjectId = project.id;
-  saveProjects();
-  updateStageInputs();
-  updatePropertiesPanel();
-  renderScene();
-});
-
-// UI: eksport / import
-
-const exportImageBtn = document.getElementById("exportImageBtn");
-const exportJsonBtn = document.getElementById("exportJsonBtn");
-const importJsonBtn = document.getElementById("importJsonBtn");
-
-exportImageBtn.addEventListener("click", () => {
-  const link = document.createElement("a");
-  link.download = "lighting-designer-scena.png";
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, "image/png");
-});
-
-exportJsonBtn.addEventListener("click", () => {
-  const project = getCurrentProject();
-  if (!project) {
-    alert("Brak projektu do eksportu.");
-    return;
+function populateProjectSelect() {
+  if (!projectSelectEl) return;
+  projectSelectEl.innerHTML = "";
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    projectSelectEl.appendChild(opt);
   }
-  const dataStr = JSON.stringify(project, null, 2);
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
+  projectSelectEl.value = currentProjectId || "";
+}
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `lighting-project-${project.name || "bez-nazwy"}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-});
-
-importJsonBtn.addEventListener("click", () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/json";
-  input.addEventListener("change", () => {
-    const file = input.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const imported = JSON.parse(reader.result);
-        if (!imported || !imported.elements) {
-          throw new Error("Niepoprawny plik projektu.");
-        }
-        imported.id = crypto.randomUUID();
-        imported.createdAt = imported.createdAt || Date.now();
-        imported.name = imported.name || `Import ${new Date().toLocaleString("pl-PL")}`;
-        projects.push(imported);
-        currentProjectId = imported.id;
-        saveProjects();
-        updateStageInputs();
-        updatePropertiesPanel();
-        renderScene();
-      } catch (err) {
-        console.error(err);
-        alert("Nie udało się wczytać projektu (błędny format JSON).");
-      }
-    };
-    reader.readAsText(file);
+if (projectSelectEl) {
+  projectSelectEl.addEventListener("change", () => {
+    currentProjectId = projectSelectEl.value;
+    selectedElementId = null;
+    updateStageInputs();
+    updatePropertiesPanel();
+    renderScene();
   });
-  input.click();
-});
+}
 
-// UI: paleta
+if (newProjectBtn) {
+  newProjectBtn.addEventListener("click", () => {
+    const name = prompt("Nazwa nowego projektu:");
+    if (!name) return;
+
+    const project = {
+      id: crypto.randomUUID(),
+      name,
+      stageWidth: 10,
+      stageDepth: 6,
+      elements: []
+    };
+    projects.push(project);
+    currentProjectId = project.id;
+    saveProjects();
+    updateStageInputs();
+    updatePropertiesPanel();
+    renderScene();
+  });
+}
+
+if (deleteProjectBtn) {
+  deleteProjectBtn.addEventListener("click", () => {
+    if (!currentProjectId) return;
+    if (projects.length <= 1) {
+      alert("Musi pozostać przynajmniej jeden projekt.");
+      return;
+    }
+
+    const project = getCurrentProject();
+    const ok = confirm(`Na pewno usunąć projekt "${project.name}"?`);
+    if (!ok) return;
+
+    projects = projects.filter(p => p.id !== currentProjectId);
+    currentProjectId = projects[0]?.id || null;
+    saveProjects();
+    updateStageInputs();
+    updatePropertiesPanel();
+    renderScene();
+  });
+}
+
+// ===== Paleta =====
 
 const paletteEl = document.getElementById("palette");
 
 function setupPalette() {
+  if (!paletteEl) return;
+  paletteEl.innerHTML = "";
   ELEMENT_TYPES.forEach(t => {
     const item = document.createElement("button");
     item.type = "button";
@@ -382,7 +265,7 @@ function addElementOfType(typeId) {
   renderScene();
 }
 
-// UI: scena (rysowanie)
+// ===== Rysowanie sceny =====
 
 function renderScene() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -390,7 +273,6 @@ function renderScene() {
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
 
-  // tło
   const gradBg = ctx.createLinearGradient(0, 0, 0, h);
   gradBg.addColorStop(0, "#020617");
   gradBg.addColorStop(0.4, "#020617");
@@ -401,20 +283,15 @@ function renderScene() {
   const project = getCurrentProject();
   if (!project) return;
 
-  // scena
-  const stageWidth = project.stageWidth || 10;
-  const stageDepth = project.stageDepth || 6;
-
   const stageHeight = h * 0.6;
   const stageY = h * 0.15;
   const stageMargin = w * 0.1;
 
   ctx.save();
-  ctx.translate(0, 0);
   ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
   ctx.lineWidth = 1;
 
-  // zewnętrzna rama sceny
+  // rama
   ctx.strokeRect(
     stageMargin,
     stageY,
@@ -474,11 +351,11 @@ function drawElement(el, w, h) {
   ctx.save();
   ctx.translate(x, y);
 
-  // wiązka światła
+  const color = el.color || type.color;
+
+  // wiązka
   const beamLength = h * 0.3 * el.scale;
   const beamWidth = baseW * 2;
-
-  const color = el.color || type.color;
 
   const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
   grad.addColorStop(0, hexToRgba(color, 0.9));
@@ -494,7 +371,7 @@ function drawElement(el, w, h) {
   ctx.closePath();
   ctx.fill();
 
-  // źródło światła
+  // obudowa
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
@@ -511,7 +388,6 @@ function drawElement(el, w, h) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // obrys zaznaczonego
   if (el.id === selectedElementId) {
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 2;
@@ -530,7 +406,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Interakcja: zaznaczanie / przeciąganie
+// ===== Interakcja: zaznaczanie / drag & drop (iOS + desktop) =====
 
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
@@ -561,7 +437,6 @@ function hitTestElement(px, py) {
   const minY = stageY;
   const maxY = stageY + stageHeight;
 
-  // od góry (ostatni = najwyższy)
   for (let i = project.elements.length - 1; i >= 0; i--) {
     const el = project.elements[i];
     const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
@@ -586,11 +461,10 @@ function hitTestElement(px, py) {
   return null;
 }
 
-// Pointer events – główna ścieżka (iOS 16+, Safari, PWA)
+// Pointer events – główna ścieżka (iOS 16+, Safari, desktop)
 
 canvas.addEventListener("pointerdown", e => {
-  // Blokujemy domyślne przewijanie/gesty (szczególnie na iOS)
-  e.preventDefault();
+  e.preventDefault(); // WAŻNE: blokuje scroll na iOS przy dragowaniu
 
   const pos = getPointerPos(e);
   const hit = hitTestElement(pos.x, pos.y);
@@ -609,7 +483,6 @@ canvas.addEventListener("pointerdown", e => {
     renderScene();
   }
 
-  // Na desktopie przechwytujemy wskaźnik, żeby drag był stabilny
   if (typeof canvas.setPointerCapture === "function" && e.pointerId != null) {
     try {
       canvas.setPointerCapture(e.pointerId);
@@ -622,8 +495,7 @@ canvas.addEventListener("pointerdown", e => {
 canvas.addEventListener("pointermove", e => {
   if (!isDragging) return;
 
-  // Na mobilkach (iOS) blokuje scroll podczas przeciągania
-  e.preventDefault();
+  e.preventDefault(); // ponownie – blokada scrolla na iOS
 
   const project = getCurrentProject();
   if (!project) return;
@@ -647,14 +519,11 @@ canvas.addEventListener("pointermove", e => {
   const newX = pos.x - dragOffset.x;
   const newY = pos.y - dragOffset.y;
 
-  const elData = getCurrentProject().elements.find(e2 => e2.id === selectedElementId);
-  if (!elData) return;
+  el.x = (newX - minX) / (maxX - minX);
+  el.y = (newY - minY) / (maxY - minY);
 
-  elData.x = (newX - minX) / (maxX - minX);
-  elData.y = (newY - minY) / (maxY - minY);
-
-  elData.x = Math.min(0.98, Math.max(0.02, elData.x));
-  elData.y = Math.min(0.98, Math.max(0.02, elData.y));
+  el.x = Math.min(0.98, Math.max(0.02, el.x));
+  el.y = Math.min(0.98, Math.max(0.02, el.y));
 
   saveProjects();
   renderScene();
@@ -679,75 +548,7 @@ canvas.addEventListener("pointercancel", e => {
   endPointerDrag(e);
 });
 
-// Fallback dla środowisk bez PointerEvent (stare webview / niektóre wbudowane przeglądarki)
-
-if (!window.PointerEvent) {
-  canvas.addEventListener("touchstart", e => {
-    e.preventDefault();
-    const pos = getPointerPos(e);
-    const hit = hitTestElement(pos.x, pos.y);
-
-    if (hit) {
-      selectedElementId = hit.el.id;
-      isDragging = true;
-      dragOffset.x = pos.x - hit.x;
-      dragOffset.y = pos.y - hit.y;
-      updatePropertiesPanel();
-      renderScene();
-    } else {
-      selectedElementId = null;
-      isDragging = false;
-      updatePropertiesPanel();
-      renderScene();
-    }
-  }, { passive: false });
-
-  canvas.addEventListener("touchmove", e => {
-    if (!isDragging) return;
-    e.preventDefault();
-
-    const project = getCurrentProject();
-    if (!project) return;
-    const el = project.elements.find(el => el.id === selectedElementId);
-    if (!el) return;
-
-    const pos = getPointerPos(e);
-
-    const w = canvas.width / (window.devicePixelRatio || 1);
-    const h = canvas.height / (window.devicePixelRatio || 1);
-
-    const stageHeight = h * 0.6;
-    const stageY = h * 0.15;
-    const stageMargin = w * 0.1;
-
-    const minX = stageMargin;
-    const maxX = w - stageMargin;
-    const minY = stageY;
-    const maxY = stageY + stageHeight;
-
-    const newX = pos.x - dragOffset.x;
-    const newY = pos.y - dragOffset.y;
-
-    el.x = (newX - minX) / (maxX - minX);
-    el.y = (newY - minY) / (maxY - minY);
-
-    el.x = Math.min(0.98, Math.max(0.02, el.x));
-    el.y = Math.min(0.98, Math.max(0.02, el.y));
-
-    saveProjects();
-    renderScene();
-  }, { passive: false });
-
-  const endTouch = e => {
-    e.preventDefault();
-    isDragging = false;
-  };
-
-  canvas.addEventListener("touchend", endTouch, { passive: false });
-  canvas.addEventListener("touchcancel", endTouch, { passive: false });
-}
-
-// Panel właściwości
+// ===== Panel właściwości =====
 
 const noSelectionTextEl = document.getElementById("noSelectionText");
 const propertiesPanelEl = document.getElementById("propertiesPanel");
@@ -760,63 +561,70 @@ const deleteElementBtn = document.getElementById("deleteElementBtn");
 function updatePropertiesPanel() {
   const project = getCurrentProject();
   if (!project || !selectedElementId) {
-    noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
-    propertiesContentEl.classList.add("hidden");
-    propertiesPanelEl.classList.remove("hidden");
+    if (noSelectionTextEl) noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
+    if (propertiesContentEl) propertiesContentEl.classList.add("hidden");
+    if (propertiesPanelEl) propertiesPanelEl.classList.remove("hidden");
     return;
   }
 
   const el = project.elements.find(e => e.id === selectedElementId);
   if (!el) {
-    noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
-    propertiesContentEl.classList.add("hidden");
-    propertiesPanelEl.classList.remove("hidden");
+    if (noSelectionTextEl) noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
+    if (propertiesContentEl) propertiesContentEl.classList.add("hidden");
+    if (propertiesPanelEl) propertiesPanelEl.classList.remove("hidden");
     return;
   }
 
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
-  propTypeEl.textContent = type ? type.name : el.typeId;
-  propScaleEl.value = el.scale.toFixed(2);
-  propColorEl.value = el.color || (type ? type.color : "#ffffff");
 
-  noSelectionTextEl.textContent = "";
-  propertiesContentEl.classList.remove("hidden");
-  propertiesPanelEl.classList.remove("hidden");
+  if (propTypeEl) propTypeEl.textContent = type ? type.name : el.typeId;
+  if (propScaleEl) propScaleEl.value = el.scale.toFixed(2);
+  if (propColorEl) propColorEl.value = el.color || (type ? type.color : "#ffffff");
+
+  if (noSelectionTextEl) noSelectionTextEl.textContent = "";
+  if (propertiesContentEl) propertiesContentEl.classList.remove("hidden");
+  if (propertiesPanelEl) propertiesPanelEl.classList.remove("hidden");
 }
 
-propScaleEl.addEventListener("input", () => {
-  const project = getCurrentProject();
-  if (!project) return;
-  const el = project.elements.find(e => e.id === selectedElementId);
-  if (!el) return;
-  el.scale = parseFloat(propScaleEl.value) || 1;
-  saveProjects();
-  renderScene();
-});
+if (propScaleEl) {
+  propScaleEl.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const el = project.elements.find(e => e.id === selectedElementId);
+    if (!el) return;
+    el.scale = parseFloat(propScaleEl.value) || 1;
+    saveProjects();
+    renderScene();
+  });
+}
 
-propColorEl.addEventListener("input", () => {
-  const project = getCurrentProject();
-  if (!project) return;
-  const el = project.elements.find(e => e.id === selectedElementId);
-  if (!el) return;
-  el.color = propColorEl.value;
-  saveProjects();
-  renderScene();
-});
+if (propColorEl) {
+  propColorEl.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const el = project.elements.find(e => e.id === selectedElementId);
+    if (!el) return;
+    el.color = propColorEl.value;
+    saveProjects();
+    renderScene();
+  });
+}
 
-deleteElementBtn.addEventListener("click", () => {
-  const project = getCurrentProject();
-  if (!project) return;
-  if (!selectedElementId) return;
+if (deleteElementBtn) {
+  deleteElementBtn.addEventListener("click", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    if (!selectedElementId) return;
 
-  project.elements = project.elements.filter(e => e.id !== selectedElementId);
-  selectedElementId = null;
-  saveProjects();
-  updatePropertiesPanel();
-  renderScene();
-});
+    project.elements = project.elements.filter(e => e.id !== selectedElementId);
+    selectedElementId = null;
+    saveProjects();
+    updatePropertiesPanel();
+    renderScene();
+  });
+}
 
-// Ustawienia sceny
+// ===== Ustawienia sceny =====
 
 const stageWidthInput = document.getElementById("stageWidth");
 const stageDepthInput = document.getElementById("stageDepth");
@@ -824,35 +632,39 @@ const stageDepthInput = document.getElementById("stageDepth");
 function updateStageInputs() {
   const project = getCurrentProject();
   if (!project) return;
-  stageWidthInput.value = project.stageWidth ?? 10;
-  stageDepthInput.value = project.stageDepth ?? 6;
+  if (stageWidthInput) stageWidthInput.value = project.stageWidth ?? 10;
+  if (stageDepthInput) stageDepthInput.value = project.stageDepth ?? 6;
 }
 
-stageWidthInput.addEventListener("input", () => {
-  const project = getCurrentProject();
-  if (!project) return;
-  const val = parseFloat(stageWidthInput.value);
-  if (isNaN(val)) return;
-  project.stageWidth = val;
-  saveProjects();
-  renderScene();
-});
+if (stageWidthInput) {
+  stageWidthInput.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const val = parseFloat(stageWidthInput.value);
+    if (isNaN(val)) return;
+    project.stageWidth = val;
+    saveProjects();
+    renderScene();
+  });
+}
 
-stageDepthInput.addEventListener("input", () => {
-  const project = getCurrentProject();
-  if (!project) return;
-  const val = parseFloat(stageDepthInput.value);
-  if (isNaN(val)) return;
-  project.stageDepth = val;
-  saveProjects();
-  renderScene();
-});
+if (stageDepthInput) {
+  stageDepthInput.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const val = parseFloat(stageDepthInput.value);
+    if (isNaN(val)) return;
+    project.stageDepth = val;
+    saveProjects();
+    renderScene();
+  });
+}
 
-// Inicjalizacja
+// ===== Inicjalizacja =====
 
 function init() {
   loadProjects();
-  renderProjectsList();
+  populateProjectSelect();
   setupPalette();
   updateStageInputs();
   updatePropertiesPanel();
@@ -861,7 +673,6 @@ function init() {
 
 window.addEventListener("load", () => {
   init();
-  // PWA service worker
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("sw.js")
