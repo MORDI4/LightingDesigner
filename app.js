@@ -1,7 +1,10 @@
 // Lighting Designer 2D - PWA, vanilla JS
-// PRO: realistyczne typy świateł + haze + blending, BEZ tilt/dodatków w profile/bar
+// PRO: realistyczne typy świateł + haze + blending
 // + przycisk "Powiel" w panelu wybranego światła
 // + legenda typów świateł NAD sceną (miniatury, 1–2 rzędy), widoczna też w eksporcie
+// + obrót światła 0–360°
+// + osobna długość wiązki (gruba/ cienka vs krótka/ długa)
+// + liczniki świateł w legendzie
 
 // ===== Konfiguracja świateł =====
 
@@ -9,7 +12,7 @@ const ELEMENT_TYPES = [
   {
     id: "spot",
     name: "Spot",
-    color: "#f5c542",  // ciepły żółty – klasyczny front spot
+    color: "#f5c542", // ciepły żółty – klasyczny front spot
     width: 40,
     height: 60
   },
@@ -63,7 +66,6 @@ const ELEMENT_TYPES = [
     height: 50
   }
 ];
-
 
 const STORAGE_KEY = "lighting_designer_projects_v1";
 const LEGEND_AREA_HEIGHT = 72; // miejsce nad sceną na legendę
@@ -224,13 +226,16 @@ if (exportImageBtn) {
   exportImageBtn.addEventListener("click", () => {
     const link = document.createElement("a");
     link.download = "lighting-scene.png";
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-    }, "image/png");
+    canvas.toBlob(
+      blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+      },
+      "image/png"
+    );
   });
 }
 
@@ -272,7 +277,9 @@ function addElementOfType(typeId) {
     typeId,
     x: 0.5,
     y: 0.2,
-    scale: 1,
+    scale: 1,      // ogólny rozmiar / grubość
+    beamScale: 1,  // długość wiązki
+    rotation: 0,   // obrót w stopniach
     color: type.color
   };
 
@@ -329,7 +336,12 @@ function renderScene() {
 
   const platformH = h * 0.08;
   ctx.fillStyle = "#020617";
-  ctx.fillRect(stageMargin * 0.5, stageY + stageHeight + 6, w - stageMargin, platformH);
+  ctx.fillRect(
+    stageMargin * 0.5,
+    stageY + stageHeight + 6,
+    w - stageMargin,
+    platformH
+  );
 
   ctx.restore();
 
@@ -342,7 +354,7 @@ function renderScene() {
   drawLegend(project, w, h);
 }
 
-// ===== Legenda typów świateł (nad sceną, LED bar gruby i na pewno widoczny) =====
+// ===== Legenda typów świateł (nad sceną, z licznikami) =====
 function drawLegend(project, w, h) {
   if (!project || !project.elements || project.elements.length === 0) return;
 
@@ -350,6 +362,13 @@ function drawLegend(project, w, h) {
     new Set(project.elements.map(el => el.typeId).filter(Boolean))
   );
   if (!typeIds.length) return;
+
+  // liczniki świateł per typ
+  const countsByTypeId = {};
+  for (const el of project.elements) {
+    if (!el.typeId) continue;
+    countsByTypeId[el.typeId] = (countsByTypeId[el.typeId] || 0) + 1;
+  }
 
   const marginX = 12;
   const marginY = 6;
@@ -399,8 +418,11 @@ function drawLegend(project, w, h) {
       const type = ELEMENT_TYPES.find(t => t.id === typeId);
       if (!type) continue;
 
+      const count = countsByTypeId[typeId] || 0;
+      const baseLabel = type.name;
+      const label = `${baseLabel} (${count})`; // licznik zawsze widoczny
+
       const centerX = marginX + step * (i + 0.5);
-      const label = type.name;
       const labelWidth = ctx.measureText(label).width;
       const isBar = typeId === "bar";
 
@@ -428,18 +450,16 @@ function drawLegend(project, w, h) {
       ctx.fill();
 
       if (isBar) {
-        // === LED BAR: czysta, jednolita miniaturka ===
+        // === LED BAR: mini belka obok napisu, skala zbliżona do reszty ikon ===
+        const barHeight = legendHeight * 0.45; // podobna wysokość co inne miniatury
+        const barWidth = legendHeight * 1.1;   // krótka, ale wyraźna belka
+        const barX = pillX + 8;
+        const barY = rowCenterY - barHeight / 2;
 
-        const barHeight = legendHeight * 0.1;      // podobna skala wysokości do innych ikon
-        const barWidth  = legendHeight * 0.4;       // proporcja zbliżona do miniatur reszty
-        const barX      = pillX + 8;
-        const barY      = rowCenterY - barHeight / 2;
-
-        // zielony prostokąt LED bara
         ctx.fillStyle = type.color;
         ctx.fillRect(barX, barY, barWidth, barHeight);
 
-        // tekst: bez wychodzenia poza pigułkę
+        // tekst – na pewno w środku pigułki
         const textX = Math.min(
           barX + barWidth + 6,
           pillX + pillWidth - ctx.measureText(label).width - 6
@@ -464,8 +484,6 @@ function drawLegend(project, w, h) {
   ctx.restore();
 }
 
-
-
 // miniatury – ta sama geometria co na scenie, ale mocno pomniejszona
 function drawLegendIcon(type, cx, cy, maxHeight) {
   ctx.save();
@@ -480,24 +498,15 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
 
   const maxIconWidth = 12;
 
-  // ===== LED BAR – specjalny przypadek: cienka, ewidentna belka =====
+  // ===== LED BAR – gdyby kiedyś był użyty z tej funkcji =====
   if (id === "bar") {
-    // LED bar w legendzie – grubsza, krótka belka obok napisu
-    const barWidth = Math.min(24, maxIconWidth * 2.0); // trochę krótsza niż scena
-    const barHeight = 8;                               // wyraźna grubość
-
+    const barWidth = Math.min(24, maxIconWidth * 2.0);
+    const barHeight = 8;
     ctx.fillStyle = color;
-    if (ctx.roundRect) {
-      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight, 3);
-    } else {
-      ctx.fillRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
-    }
-
+    ctx.fillRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight);
     ctx.restore();
     return;
   }
-
-
 
   // ===== parametry wiązki 1:1 z drawElement (tylko skrócone) =====
   let beamShape = "cone";
@@ -603,11 +612,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     grad.addColorStop(1, hexToRgba(color, eA));
     ctx.fillStyle = grad;
 
-    if (ctx.roundRect) {
-      ctx.roundRect(-width / 2, 0, width, beamLength, 3);
-    } else {
-      ctx.fillRect(-width / 2, 0, width, beamLength);
-    }
+    ctx.fillRect(-width / 2, 0, width, beamLength);
   } else if (beamShape === "fresnel" || beamShape === "par") {
     const radiusBase = baseH * (beamShape === "fresnel" ? 1.3 : 1.0);
     let radius = Math.min(radiusBase, maxHeight * 0.6);
@@ -662,12 +667,7 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
       ctx.fillRect(-fw / 2, lensY - fh / 2, fw, fh);
     }
     ctx.fillStyle = color;
-    ctx.fillRect(
-      -fw / 2 + 1.5,
-      lensY - fh / 2 + 1.5,
-      fw - 3,
-      fh - 3
-    );
+    ctx.fillRect(-fw / 2 + 1.5, lensY - fh / 2 + 1.5, fw - 3, fh - 3);
   } else {
     const radius = maxLensRadius;
     ctx.fillStyle = "#020617";
@@ -676,8 +676,12 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
     ctx.fill();
 
     const gradLens = ctx.createRadialGradient(
-      0, lensY - radius * 0.3, 0,
-      0, lensY, radius
+      0,
+      lensY - radius * 0.3,
+      0,
+      0,
+      lensY,
+      radius
     );
     gradLens.addColorStop(0, "#ffffff");
     gradLens.addColorStop(0.3, color);
@@ -691,21 +695,23 @@ function drawLegendIcon(type, cx, cy, maxHeight) {
   ctx.restore();
 }
 
-
 function drawElement(el, w, h) {
   const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
   if (!type) return;
 
   const { stageMargin, stageHeight, stageY } = getStageMetrics(w, h);
 
+  // domyślne wartości dla starszych projektów
+  if (el.beamScale == null) el.beamScale = 1;
+  if (el.rotation == null) el.rotation = 0;
+
   const id = type.id;
   const isBar = id === "bar";
 
-  // dla LED bar: skala tylko po szerokości, wysokość stała
   const rawW = type.width;
   const rawH = type.height;
-  const baseW = rawW * el.scale;          // zawsze skaluje się szerokość
-  const baseH = rawH * (isBar ? 1 : el.scale); // wysokość stała dla bar
+  const baseW = rawW * el.scale;              // zawsze skaluje się szerokość
+  const baseH = rawH * (isBar ? 1 : el.scale); // wysokość stała dla LED bara
 
   const minX = stageMargin;
   const maxX = w - stageMargin;
@@ -717,6 +723,10 @@ function drawElement(el, w, h) {
 
   ctx.save();
   ctx.translate(x, y);
+
+  // obrót 0–360°
+  const rotationRad = (el.rotation || 0) * Math.PI / 180;
+  ctx.rotate(rotationRad);
 
   const color = el.color || type.color;
 
@@ -791,13 +801,14 @@ function drawElement(el, w, h) {
   const sA = startAlpha * intensity;
   const mA = midAlpha * intensity;
   const eA = endAlpha * intensity;
+  const beamScale = el.beamScale || 1;
 
   // ===== WIĄZKA + HAZE =====
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
   if (beamShape === "cone") {
-    const beamLength = h * beamLenFactor * el.scale;
+    const beamLength = h * beamLenFactor * el.scale * beamScale;
     const topWidth = baseW * topWidthFactor;
     const bottomWidth = baseW * bottomWidthFactor;
 
@@ -818,8 +829,12 @@ function drawElement(el, w, h) {
     const hazeRadius = beamLength * 0.6;
     const hazeCenterY = beamLength * 0.45;
     const hazeGrad = ctx.createRadialGradient(
-      0, hazeCenterY, 0,
-      0, hazeCenterY, hazeRadius
+      0,
+      hazeCenterY,
+      0,
+      0,
+      hazeCenterY,
+      hazeRadius
     );
     hazeGrad.addColorStop(0, hexToRgba(color, 0.12 * intensity));
     hazeGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -827,9 +842,8 @@ function drawElement(el, w, h) {
     ctx.beginPath();
     ctx.arc(0, hazeCenterY, hazeRadius, 0, Math.PI * 2);
     ctx.fill();
-
   } else if (beamShape === "rect") {
-    const beamLength = h * beamLenFactor * el.scale;
+    const beamLength = h * beamLenFactor * el.scale * beamScale;
     const width = baseW * 1.1;
 
     const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
@@ -845,14 +859,17 @@ function drawElement(el, w, h) {
       ctx.rect(-width / 2, 0, width, beamLength);
     }
     ctx.fill();
+  } else if (beamShape === "bar") {
+    // LED bar – wiązka pionowa, długość zależna od beamScale, szerokość = szerokość frontu
+    const barWidth = baseW * 2.0; // zgodna z szerokością frontu
+    const barHeight = baseH * 1.6 * beamScale;
 
-} else if (beamShape === "bar") {
-    // LED bar – wiązka dokładnie tak długa jak sam prostokąt LED bara
-    // (front ma szerokość fw = baseW * 2.0, więc używamy tej samej wartości)
-    const barWidth = baseW * 2.0;   // == szerokość prostokąta LED bara
-    const barHeight = baseH * 1.6;
-
-    const grad = ctx.createLinearGradient(0, -barHeight / 2, 0, barHeight * 2.4);
+    const grad = ctx.createLinearGradient(
+      0,
+      -barHeight / 2,
+      0,
+      barHeight * 1.5
+    );
     grad.addColorStop(0, hexToRgba(color, 0.95 * intensity));
     grad.addColorStop(0.4, hexToRgba(color, 0.6 * intensity));
     grad.addColorStop(1, "rgba(0,0,0,0)");
@@ -860,12 +877,18 @@ function drawElement(el, w, h) {
     ctx.fillStyle = grad;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(-barWidth / 2, -barHeight / 2, barWidth, barHeight * 2.4, 6);
+      ctx.roundRect(
+        -barWidth / 2,
+        -barHeight / 2,
+        barWidth,
+        barHeight * 1.5,
+        6
+      );
     } else {
-      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight * 2.4);
+      ctx.rect(-barWidth / 2, -barHeight / 2, barWidth, barHeight * 1.5);
     }
     ctx.fill();
-} else if (beamShape === "fresnel" || beamShape === "par") {
+  } else if (beamShape === "fresnel" || beamShape === "par") {
     const radiusBase = beamShape === "fresnel" ? baseH * 2.2 : baseH * 1.6;
     const radiusX = radiusBase * (beamShape === "fresnel" ? 1.5 : 1.3);
     const radiusY = radiusBase;
@@ -884,7 +907,6 @@ function drawElement(el, w, h) {
     ctx.arc(0, 0, radiusBase, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
   } else if (beamShape === "strobe") {
     const radius = baseH * 1.8;
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
@@ -900,7 +922,7 @@ function drawElement(el, w, h) {
     ctx.fill();
     ctx.restore();
 
-    const beamLength = h * 0.45 * el.scale;
+    const beamLength = h * 0.45 * el.scale * beamScale;
     const beamGrad = ctx.createLinearGradient(0, 0, 0, beamLength);
     beamGrad.addColorStop(0, hexToRgba("#ffffff", 0.95));
     beamGrad.addColorStop(1, "rgba(0,0,0,0)");
@@ -950,8 +972,12 @@ function drawElement(el, w, h) {
     ctx.fill();
 
     const gradLens = ctx.createRadialGradient(
-      0, lensY - radius * 0.3, 0,
-      0, lensY, radius
+      0,
+      lensY - radius * 0.3,
+      0,
+      0,
+      lensY,
+      radius
     );
     gradLens.addColorStop(0, "#ffffff");
     gradLens.addColorStop(0.3, color);
@@ -981,7 +1007,6 @@ function drawElement(el, w, h) {
 
   ctx.restore();
 }
-
 
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace("#", "");
@@ -1025,8 +1050,9 @@ function hitTestElement(px, py) {
     const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
     if (!type) continue;
 
-    const baseW = type.width * el.scale;
-    const baseH = type.height * el.scale;
+    const isBar = type.id === "bar";
+    const baseW = type.width * (el.scale || 1);
+    const baseH = type.height * (isBar ? 1 : (el.scale || 1));
 
     const x = minX + el.x * (maxX - minX);
     const y = minY + el.y * (maxY - minY);
@@ -1105,7 +1131,11 @@ canvas.addEventListener("pointermove", e => {
 });
 
 function endPointerDrag(e) {
-  if (typeof canvas.releasePointerCapture === "function" && e && e.pointerId != null) {
+  if (
+    typeof canvas.releasePointerCapture === "function" &&
+    e &&
+    e.pointerId != null
+  ) {
     try {
       canvas.releasePointerCapture(e.pointerId);
     } catch (err) {}
@@ -1121,21 +1151,32 @@ canvas.addEventListener("pointercancel", endPointerDrag);
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
 const propScaleEl = document.getElementById("propScale");
+const propBeamScaleEl = document.getElementById("propBeamScale");
+const propRotationEl = document.getElementById("propRotation");
 const propColorEl = document.getElementById("propColor");
 const deleteElementBtn = document.getElementById("deleteElementBtn");
 const duplicateElementBtn = document.getElementById("duplicateElementBtn");
 
 function updatePropertiesPanel() {
   const project = getCurrentProject();
-  const el = project && selectedElementId
-    ? project.elements.find(e => e.id === selectedElementId)
-    : null;
+  const el =
+    project && selectedElementId
+      ? project.elements.find(e => e.id === selectedElementId)
+      : null;
 
   if (!el) {
     if (propTypeEl) propTypeEl.textContent = "–";
     if (propScaleEl) {
       propScaleEl.value = 1;
       propScaleEl.disabled = true;
+    }
+    if (propBeamScaleEl) {
+      propBeamScaleEl.value = 1;
+      propBeamScaleEl.disabled = true;
+    }
+    if (propRotationEl) {
+      propRotationEl.value = 0;
+      propRotationEl.disabled = true;
     }
     if (propColorEl) {
       propColorEl.value = "#ffffff";
@@ -1151,7 +1192,15 @@ function updatePropertiesPanel() {
   if (propTypeEl) propTypeEl.textContent = type ? type.name : el.typeId;
   if (propScaleEl) {
     propScaleEl.disabled = false;
-    propScaleEl.value = el.scale.toFixed(2);
+    propScaleEl.value = (el.scale ?? 1).toFixed(2);
+  }
+  if (propBeamScaleEl) {
+    propBeamScaleEl.disabled = false;
+    propBeamScaleEl.value = (el.beamScale ?? 1).toFixed(2);
+  }
+  if (propRotationEl) {
+    propRotationEl.disabled = false;
+    propRotationEl.value = (el.rotation ?? 0).toFixed(0);
   }
   if (propColorEl) {
     propColorEl.disabled = false;
@@ -1168,6 +1217,30 @@ if (propScaleEl) {
     const el = project.elements.find(e => e.id === selectedElementId);
     if (!el) return;
     el.scale = parseFloat(propScaleEl.value) || 1;
+    saveProjects();
+    renderScene();
+  });
+}
+
+if (propBeamScaleEl) {
+  propBeamScaleEl.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const el = project.elements.find(e => e.id === selectedElementId);
+    if (!el) return;
+    el.beamScale = parseFloat(propBeamScaleEl.value) || 1;
+    saveProjects();
+    renderScene();
+  });
+}
+
+if (propRotationEl) {
+  propRotationEl.addEventListener("input", () => {
+    const project = getCurrentProject();
+    if (!project) return;
+    const el = project.elements.find(e => e.id === selectedElementId);
+    if (!el) return;
+    el.rotation = parseFloat(propRotationEl.value) || 0;
     saveProjects();
     renderScene();
   });
@@ -1191,7 +1264,9 @@ if (deleteElementBtn) {
     if (!project) return;
     if (!selectedElementId) return;
 
-    project.elements = project.elements.filter(e => e.id !== selectedElementId);
+    project.elements = project.elements.filter(
+      e => e.id !== selectedElementId
+    );
     selectedElementId = null;
     saveProjects();
     updatePropertiesPanel();

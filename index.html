@@ -48,26 +48,39 @@
           <h2>Wybrane światło</h2>
           <div id="propertiesPanel" class="properties">
             <div class="properties-grid">
-              <div class="field-group">
-                <label>Typ</label>
-                <div id="propType" class="prop-readonly">–</div>
-              </div>
-                <!-- najpierw KOLOR -->
-              <div class="prop-row">
-                <label class="prop-label" for="propColor">Kolor</label>
-                <input type="color" id="propColor">
-              </div>
+              <div class="panel" id="propertiesPanel">
+                <h2>Wybrane światło</h2>
 
-              <!-- potem SKALA -->
-              <div class="prop-row prop-row-wide">
-                <label class="prop-label" for="propScale">Skala</label>
-                <input type="range" id="propScale" min="0.4" max="2" step="0.01">
+                <div class="prop-row">
+                  <span class="prop-label">Typ</span>
+                  <span id="propType">–</span>
+                </div>
+
+                <div class="prop-row">
+                  <label class="prop-label" for="propColor">Kolor</label>
+                  <input type="color" id="propColor">
+                </div>
+
+                <div class="prop-row">
+                  <label class="prop-label" for="propScale">Skala</label>
+                  <input type="range" id="propScale" min="0.4" max="2" step="0.01">
+                </div>
+
+                <div class="prop-row">
+                  <label class="prop-label" for="propBeamScale">Długość wiązki</label>
+                  <input type="range" id="propBeamScale" min="0.4" max="2" step="0.01">
+                </div>
+
+                <div class="prop-row">
+                  <label class="prop-label" for="propRotation">Obrót</label>
+                  <input type="range" id="propRotation" min="0" max="360" step="1">
+                </div>
+
+                <div class="prop-row">
+                  <button id="deleteElementBtn">Usuń element</button>
+                  <button id="duplicateElementBtn">Powiel</button>
+                </div>
               </div>
-            </div>
-            <div class="properties-actions">
-              <button id="duplicateElementBtn" class="btn small">Powiel</button>
-              <button id="deleteElementBtn" class="btn danger small">Usuń</button>
-            </div>
           </div>
         </section>
       </aside>
