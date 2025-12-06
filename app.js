@@ -30,6 +30,34 @@ const ELEMENT_TYPES = [
     color: "#22c55e",
     width: 80,
     height: 20
+  },
+  {
+    id: "profile",
+    name: "Profil",
+    color: "#e5e7eb",
+    width: 36,
+    height: 60
+  },
+  {
+    id: "fresnel",
+    name: "Fresnel",
+    color: "#fed7aa",
+    width: 44,
+    height: 44
+  },
+  {
+    id: "par",
+    name: "PAR",
+    color: "#bbf7d0",
+    width: 32,
+    height: 32
+  },
+  {
+    id: "strobe",
+    name: "Strobe",
+    color: "#f9fafb",
+    width: 30,
+    height: 24
   }
 ];
 
@@ -47,15 +75,15 @@ const ctx = canvas.getContext("2d");
 let canvasRect = canvas.getBoundingClientRect();
 
 function resizeCanvas() {
-  const wrapper = document.querySelector(".canvas-wrapper");
-  const w = wrapper.clientWidth;
-  const h = wrapper.clientHeight;
+  const wrapper = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
 
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
+  const width = wrapper.clientWidth;
+  const height = wrapper.clientHeight;
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   canvasRect = canvas.getBoundingClientRect();
@@ -64,39 +92,47 @@ function resizeCanvas() {
 
 window.addEventListener("resize", resizeCanvas);
 
-// Projekty / localStorage
+// Projekty
 
 function loadProjects() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
+    if (raw) {
+      projects = JSON.parse(raw);
+    } else {
       projects = [];
-      return;
     }
-    projects = JSON.parse(raw);
-  } catch (e) {
-    console.error("Błąd odczytu projektów", e);
+  } catch (err) {
+    console.error("Błąd wczytywania projektów", err);
     projects = [];
+  }
+
+  if (projects.length === 0) {
+    const defaultProject = {
+      id: crypto.randomUUID(),
+      name: "Domyślny projekt",
+      stageWidth: 10,
+      stageDepth: 6,
+      elements: []
+    };
+    projects.push(defaultProject);
+    currentProjectId = defaultProject.id;
+    saveProjects();
+  } else {
+    if (!currentProjectId) {
+      currentProjectId = projects[0].id;
+    }
   }
 }
 
 function saveProjects() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  } catch (err) {
+    console.error("Błąd zapisu projektów", err);
+  }
 
-function createProject(name = "Nowy projekt") {
-  const project = {
-    id: crypto.randomUUID(),
-    name,
-    createdAt: Date.now(),
-    elements: []
-  };
-  projects.unshift(project);
-  currentProjectId = project.id;
-  selectedElementId = null;
-  saveProjects();
-  refreshProjectsList();
-  renderScene();
+  populateProjectSelect();
 }
 
 function getCurrentProject() {
@@ -105,59 +141,66 @@ function getCurrentProject() {
 
 // UI: lista projektów
 
-const projectsListEl = document.getElementById("projectsList");
+const projectSelectEl = document.getElementById("projectSelect");
+const newProjectBtn = document.getElementById("newProjectBtn");
+const deleteProjectBtn = document.getElementById("deleteProjectBtn");
 
-function formatDate(ts) {
-  const d = new Date(ts);
-  return d.toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+function populateProjectSelect() {
+  projectSelectEl.innerHTML = "";
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    projectSelectEl.appendChild(opt);
+  }
+  projectSelectEl.value = currentProjectId || "";
 }
 
-function refreshProjectsList() {
-  projectsListEl.innerHTML = "";
+projectSelectEl.addEventListener("change", () => {
+  currentProjectId = projectSelectEl.value;
+  selectedElementId = null;
+  updateStageInputs();
+  updatePropertiesPanel();
+  renderScene();
+});
 
-  if (projects.length === 0) {
-    const p = document.createElement("p");
-    p.textContent = "Brak projektów. Kliknij „Nowy projekt”.";
-    p.style.fontSize = "0.8rem";
-    p.style.color = "#9ca3af";
-    projectsListEl.appendChild(p);
+newProjectBtn.addEventListener("click", () => {
+  const name = prompt("Nazwa nowego projektu:");
+  if (!name) return;
+
+  const project = {
+    id: crypto.randomUUID(),
+    name,
+    stageWidth: 10,
+    stageDepth: 6,
+    elements: []
+  };
+  projects.push(project);
+  currentProjectId = project.id;
+  saveProjects();
+  updateStageInputs();
+  updatePropertiesPanel();
+  renderScene();
+});
+
+deleteProjectBtn.addEventListener("click", () => {
+  if (!currentProjectId) return;
+  if (projects.length <= 1) {
+    alert("Musi pozostać przynajmniej jeden projekt.");
     return;
   }
 
-  for (const project of projects) {
-    const div = document.createElement("div");
-    div.className =
-      "project-item" +
-      (project.id === currentProjectId ? " active" : "");
+  const project = getCurrentProject();
+  const ok = confirm(`Na pewno usunąć projekt "${project.name}"?`);
+  if (!ok) return;
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "project-item-name";
-    nameEl.textContent = project.name;
-
-    const metaEl = document.createElement("div");
-    metaEl.className = "project-item-meta";
-    metaEl.textContent = `${formatDate(project.createdAt)} · ${project.elements.length} elem.`;
-
-    div.appendChild(nameEl);
-    div.appendChild(metaEl);
-
-    div.addEventListener("click", () => {
-      currentProjectId = project.id;
-      selectedElementId = null;
-      refreshProjectsList();
-      updatePropertiesPanel();
-      renderScene();
-    });
-
-    projectsListEl.appendChild(div);
-  }
-}
+  projects = projects.filter(p => p.id !== currentProjectId);
+  currentProjectId = projects[0]?.id || null;
+  saveProjects();
+  updateStageInputs();
+  updatePropertiesPanel();
+  renderScene();
+});
 
 // UI: paleta
 
@@ -199,9 +242,9 @@ function addElementOfType(typeId) {
 
   const el = {
     id: crypto.randomUUID(),
-    typeId,
+    typeId: typeId,
     x: 0.5,
-    y: 0.5,
+    y: 0.2,
     scale: 1,
     color: type.color
   };
@@ -209,40 +252,52 @@ function addElementOfType(typeId) {
   project.elements.push(el);
   selectedElementId = el.id;
   saveProjects();
-  refreshProjectsList();
   updatePropertiesPanel();
   renderScene();
 }
 
-// Canvas: rysowanie sceny
+// UI: scena (rysowanie)
 
 function renderScene() {
-  const project = getCurrentProject();
-  const w = canvas.width / (window.devicePixelRatio || 1);
-  const h = canvas.height / (window.devicePixelRatio || 1);
-
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
 
   // tło
-  const grd = ctx.createLinearGradient(0, 0, 0, h);
-  grd.addColorStop(0, "#020617");
-  grd.addColorStop(0.5, "#111827");
-  grd.addColorStop(1, "#020617");
-  ctx.fillStyle = grd;
+  const gradBg = ctx.createLinearGradient(0, 0, 0, h);
+  gradBg.addColorStop(0, "#020617");
+  gradBg.addColorStop(0.4, "#020617");
+  gradBg.addColorStop(1, "#000000");
+  ctx.fillStyle = gradBg;
   ctx.fillRect(0, 0, w, h);
 
-  // scena - prostokąt "widok od frontu"
+  const project = getCurrentProject();
+  if (!project) return;
+
+  // scena
+  const stageWidth = project.stageWidth || 10;
+  const stageDepth = project.stageDepth || 6;
+
   const stageHeight = h * 0.6;
   const stageY = h * 0.15;
   const stageMargin = w * 0.1;
 
-  ctx.fillStyle = "#020617";
-  ctx.fillRect(stageMargin, stageY, w - stageMargin * 2, stageHeight);
+  ctx.save();
+  ctx.translate(0, 0);
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+  ctx.lineWidth = 1;
+
+  // zewnętrzna rama sceny
+  ctx.strokeRect(
+    stageMargin,
+    stageY,
+    w - stageMargin * 2,
+    stageHeight
+  );
 
   // kratka
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
-  ctx.lineWidth = 0.5;
-  const rows = 8;
+  const rows = 6;
   const cols = 10;
   for (let i = 0; i <= rows; i++) {
     const y = stageY + (stageHeight * i) / rows;
@@ -263,6 +318,8 @@ function renderScene() {
   const platformH = h * 0.08;
   ctx.fillStyle = "#020617";
   ctx.fillRect(stageMargin * 0.5, stageY + stageHeight + 6, w - stageMargin, platformH);
+
+  ctx.restore();
 
   if (!project) return;
 
@@ -287,17 +344,28 @@ function drawElement(el, w, h) {
   const minY = stageY;
   const maxY = stageY + stageHeight;
 
-  const x = minX + (maxX - minX) * el.x;
-  const y = minY + (maxY - minY) * el.y;
+  const x = minX + el.x * (maxX - minX);
+  const y = minY + el.y * (maxY - minY);
 
-  const isSelected = el.id === selectedElementId;
-
-  // "obudowa" reflektora
   ctx.save();
   ctx.translate(x, y);
-  ctx.fillStyle = "#0f172a";
+
+  // wiązka światła
+  const beamLength = h * 0.3 * el.scale;
+  const beamWidth = baseW * 2;
+
+  const grad = ctx.createLinearGradient(0, 0, 0, beamLength);
+  grad.addColorStop(0, hexToRgba(el.color || type.color, 0.9));
+  grad.addColorStop(0.4, hexToRgba(el.color || type.color, 0.4));
+  grad.addColorStop(1, hexToRgba(el.color || type.color, 0.0));
+
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.roundRect(-baseW / 2 - 4, -baseH / 2 - 4, baseW + 8, baseH + 8, 6);
+  ctx.moveTo(-beamWidth / 2, 0);
+  ctx.lineTo(beamWidth / 2, 0);
+  ctx.lineTo(beamWidth * 0.8, beamLength);
+  ctx.lineTo(-beamWidth * 0.8, beamLength);
+  ctx.closePath();
   ctx.fill();
 
   // źródło światła
@@ -307,31 +375,29 @@ function drawElement(el, w, h) {
   ctx.fill();
 
   // ekstra poświata
-  const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
-  grad.addColorStop(0, hexToRgba(el.color || type.color, 0.75));
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = grad;
+  const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
+  glowGrad.addColorStop(0, hexToRgba(el.color || type.color, 0.75));
+  glowGrad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glowGrad;
   ctx.globalAlpha = 0.6;
   ctx.beginPath();
-  ctx.ellipse(0, baseH, baseW * 1.6, baseH * 2.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, baseH, baseW * 1.6, baseH * 1.4, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // obrys zaznaczenia
-  if (isSelected) {
-    ctx.strokeStyle = "#e5e7eb";
+  // obrys zaznaczonego
+  if (el.id === selectedElementId) {
+    ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
-    ctx.strokeRect(-baseW / 2 - 6, -baseH / 2 - 6, baseW + 12, baseH + 12);
-    ctx.setLineDash([]);
+    ctx.strokeRect(-baseW / 2 - 3, -baseH / 2 - 3, baseW + 6, baseH + 6);
   }
 
   ctx.restore();
 }
 
 function hexToRgba(hex, alpha) {
-  const c = hex.replace("#", "");
-  const bigint = parseInt(c, 16);
+  const normalized = hex.replace("#", "");
+  const bigint = parseInt(normalized, 16);
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
@@ -374,10 +440,12 @@ function hitTestElement(px, py) {
     const el = project.elements[i];
     const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
     if (!type) continue;
+
     const baseW = type.width * el.scale;
     const baseH = type.height * el.scale;
-    const x = minX + (maxX - minX) * el.x;
-    const y = minY + (maxY - minY) * el.y;
+
+    const x = minX + el.x * (maxX - minX);
+    const y = minY + el.y * (maxY - minY);
 
     const left = x - baseW / 2;
     const right = x + baseW / 2;
@@ -392,7 +460,11 @@ function hitTestElement(px, py) {
   return null;
 }
 
+// Interakcja: przeciąganie (desktop + mobile, również iOS)
 canvas.addEventListener("pointerdown", e => {
+  // blokujemy domyślne przewijanie strony na mobilkach
+  e.preventDefault();
+
   const pos = getPointerPos(e);
   const hit = hitTestElement(pos.x, pos.y);
 
@@ -409,13 +481,26 @@ canvas.addEventListener("pointerdown", e => {
     updatePropertiesPanel();
     renderScene();
   }
-});
+
+  // przechwytujemy wskaźnik (na desktopie)
+  if (typeof canvas.setPointerCapture === "function") {
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (err) {
+      // ignore
+    }
+  }
+}, { passive: false });
 
 canvas.addEventListener("pointermove", e => {
   if (!isDragging) return;
+
+  // znowu blokujemy domyślne zachowania (scroll, pinch-zoom itp.)
+  e.preventDefault();
+
   const project = getCurrentProject();
   if (!project) return;
-  const el = project.elements.find(e => e.id === selectedElementId);
+  const el = project.elements.find(el => el.id === selectedElementId);
   if (!el) return;
 
   const pos = getPointerPos(e);
@@ -443,18 +528,31 @@ canvas.addEventListener("pointermove", e => {
 
   saveProjects();
   renderScene();
+}, { passive: false });
+
+function endPointerDrag(e) {
+  if (typeof canvas.releasePointerCapture === "function" && e && e.pointerId != null) {
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      // ignore
+    }
+  }
+  isDragging = false;
+}
+
+canvas.addEventListener("pointerup", e => {
+  endPointerDrag(e);
 });
 
-canvas.addEventListener("pointerup", () => {
-  isDragging = false;
-});
-canvas.addEventListener("pointercancel", () => {
-  isDragging = false;
+canvas.addEventListener("pointercancel", e => {
+  endPointerDrag(e);
 });
 
 // Panel właściwości
 
 const noSelectionTextEl = document.getElementById("noSelectionText");
+const propertiesContentEl = document.getElementById("propertiesContent");
 const propertiesPanelEl = document.getElementById("propertiesPanel");
 const propTypeEl = document.getElementById("propType");
 const propScaleEl = document.getElementById("propScale");
@@ -463,16 +561,18 @@ const deleteElementBtn = document.getElementById("deleteElementBtn");
 
 function updatePropertiesPanel() {
   const project = getCurrentProject();
-  if (!project) {
-    noSelectionTextEl.textContent = "Brak projektu";
-    propertiesPanelEl.classList.add("hidden");
+  if (!project || !selectedElementId) {
+    noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
+    propertiesContentEl.classList.add("hidden");
+    propertiesPanelEl.classList.remove("hidden");
     return;
   }
 
   const el = project.elements.find(e => e.id === selectedElementId);
   if (!el) {
-    noSelectionTextEl.textContent = "Brak zaznaczonego elementu";
-    propertiesPanelEl.classList.add("hidden");
+    noSelectionTextEl.textContent = "Brak zaznaczonego elementu.";
+    propertiesContentEl.classList.add("hidden");
+    propertiesPanelEl.classList.remove("hidden");
     return;
   }
 
@@ -482,6 +582,7 @@ function updatePropertiesPanel() {
   propColorEl.value = el.color || (type ? type.color : "#ffffff");
 
   noSelectionTextEl.textContent = "";
+  propertiesContentEl.classList.remove("hidden");
   propertiesPanelEl.classList.remove("hidden");
 }
 
@@ -508,6 +609,8 @@ propColorEl.addEventListener("input", () => {
 deleteElementBtn.addEventListener("click", () => {
   const project = getCurrentProject();
   if (!project) return;
+  if (!selectedElementId) return;
+
   project.elements = project.elements.filter(e => e.id !== selectedElementId);
   selectedElementId = null;
   saveProjects();
@@ -515,147 +618,45 @@ deleteElementBtn.addEventListener("click", () => {
   renderScene();
 });
 
-// Eksport sceny do PNG
+// Ustawienia sceny
 
-document.getElementById("exportBtn").addEventListener("click", () => {
+const stageWidthInput = document.getElementById("stageWidth");
+const stageDepthInput = document.getElementById("stageDepth");
+
+function updateStageInputs() {
   const project = getCurrentProject();
-  if (!project) {
-    alert("Najpierw utwórz projekt.");
-    return;
-  }
-
-  const wrapper = document.querySelector(".canvas-wrapper");
-  const w = wrapper.clientWidth;
-  const h = wrapper.clientHeight;
-  const exportCanvas = document.createElement("canvas");
-  const dpr = 2;
-  exportCanvas.width = w * dpr;
-  exportCanvas.height = h * dpr;
-  const exportCtx = exportCanvas.getContext("2d");
-  exportCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // narysuj scenę na offscreen canvasie
-  const backupCanvas = canvas;
-  const backupCtx = ctx;
-
-  // tymczasowo podmień globalne zmienne na potrzeby renderScene
-  window._tmpCtx = ctx;
-  window._tmpCanvas = canvas;
-  // ale zamiast kombinować – skopiujemy logikę:
-  drawExportScene(exportCtx, w, h, project);
-
-  const url = exportCanvas.toDataURL("image/png");
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = (project.name || "scene") + ".png";
-  a.click();
-});
-
-function drawExportScene(context, w, h, project) {
-  // bardzo podobne do renderScene, tylko na innym kontekście
-  const grd = context.createLinearGradient(0, 0, 0, h);
-  grd.addColorStop(0, "#020617");
-  grd.addColorStop(0.5, "#111827");
-  grd.addColorStop(1, "#020617");
-  context.fillStyle = grd;
-  context.fillRect(0, 0, w, h);
-
-  const stageHeight = h * 0.6;
-  const stageY = h * 0.15;
-  const stageMargin = w * 0.1;
-
-  context.fillStyle = "#020617";
-  context.fillRect(stageMargin, stageY, w - stageMargin * 2, stageHeight);
-
-  context.strokeStyle = "rgba(148, 163, 184, 0.2)";
-  context.lineWidth = 0.5;
-  const rows = 8;
-  const cols = 10;
-  for (let i = 0; i <= rows; i++) {
-    const y = stageY + (stageHeight * i) / rows;
-    context.beginPath();
-    context.moveTo(stageMargin, y);
-    context.lineTo(w - stageMargin, y);
-    context.stroke();
-  }
-  for (let j = 0; j <= cols; j++) {
-    const x = stageMargin + ((w - stageMargin * 2) * j) / cols;
-    context.beginPath();
-    context.moveTo(x, stageY);
-    context.lineTo(x, stageY + stageHeight);
-    context.stroke();
-  }
-
-  const platformH = h * 0.08;
-  context.fillStyle = "#020617";
-  context.fillRect(stageMargin * 0.5, stageY + stageHeight + 6, w - stageMargin, platformH);
-
-  const stageHeightInner = stageHeight;
-  const stageYInner = stageY;
-  const stageMarginInner = stageMargin;
-
-  for (const el of project.elements) {
-    const type = ELEMENT_TYPES.find(t => t.id === el.typeId);
-    if (!type) continue;
-
-    const baseW = type.width * el.scale;
-    const baseH = type.height * el.scale;
-
-    const minX = stageMarginInner;
-    const maxX = w - stageMarginInner;
-    const minY = stageYInner;
-    const maxY = stageYInner + stageHeightInner;
-
-    const x = minX + (maxX - minX) * el.x;
-    const y = minY + (maxY - minY) * el.y;
-
-    context.save();
-    context.translate(x, y);
-
-    context.fillStyle = "#0f172a";
-    context.beginPath();
-    context.roundRect(-baseW / 2 - 4, -baseH / 2 - 4, baseW + 8, baseH + 8, 6);
-    context.fill();
-
-    context.fillStyle = el.color || type.color;
-    context.beginPath();
-    context.roundRect(-baseW / 2, -baseH / 2, baseW, baseH, 4);
-    context.fill();
-
-    const grad = context.createRadialGradient(0, 0, 0, 0, 0, baseH * 1.4);
-    grad.addColorStop(0, hexToRgba(el.color || type.color, 0.75));
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    context.fillStyle = grad;
-    context.globalAlpha = 0.6;
-    context.beginPath();
-    context.ellipse(0, baseH, baseW * 1.6, baseH * 2.2, 0, 0, Math.PI * 2);
-    context.fill();
-    context.globalAlpha = 1;
-
-    context.restore();
-  }
+  if (!project) return;
+  stageWidthInput.value = project.stageWidth ?? 10;
+  stageDepthInput.value = project.stageDepth ?? 6;
 }
 
-// Nowy projekt
-
-document.getElementById("newProjectBtn").addEventListener("click", () => {
-  const name = prompt("Nazwa nowego projektu:", "Scena " + (projects.length + 1));
-  createProject(name || "Nowy projekt");
+stageWidthInput.addEventListener("input", () => {
+  const project = getCurrentProject();
+  if (!project) return;
+  const val = parseFloat(stageWidthInput.value);
+  if (isNaN(val)) return;
+  project.stageWidth = val;
+  saveProjects();
+  renderScene();
 });
 
-// Init
+stageDepthInput.addEventListener("input", () => {
+  const project = getCurrentProject();
+  if (!project) return;
+  const val = parseFloat(stageDepthInput.value);
+  if (isNaN(val)) return;
+  project.stageDepth = val;
+  saveProjects();
+  renderScene();
+});
+
+// Inicjalizacja
 
 function init() {
   loadProjects();
+  populateProjectSelect();
   setupPalette();
-
-  if (projects.length === 0) {
-    createProject("Pierwszy projekt");
-  } else {
-    currentProjectId = projects[0].id;
-    refreshProjectsList();
-  }
-
+  updateStageInputs();
   updatePropertiesPanel();
   resizeCanvas();
 }
